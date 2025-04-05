@@ -1,444 +1,273 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+import { Link } from 'react-router-dom';
+import { CalendarCheck, Clock, MapPin, Helicopter, PenLine, Ban, ArrowLeft } from 'lucide-react';
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, MapPin, CheckCircle, AlertCircle, Clock4, LogOut, User, CreditCard, Settings, MessageSquare } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
-// Sample booking data
-const bookingsData = [
+// Sample booking data - in a real app, this would come from your backend
+const SAMPLE_BOOKINGS = [
   {
-    id: "B001",
-    helicopter: "Robinson R44",
-    date: "2023-06-15",
-    time: "10:00 AM - 12:00 PM",
+    id: 1,
+    helicopterName: "Bell 407GXi",
+    date: "2025-05-10",
+    time: "10:00 AM",
+    duration: 2,
     location: "Grand Canyon Tour",
-    status: "completed",
-    totalAmount: 1590,
-    passengers: 3
+    price: 1200,
+    status: "confirmed"
   },
   {
-    id: "B002",
-    helicopter: "Bell 407",
-    date: "2023-08-21",
-    time: "2:00 PM - 5:00 PM",
-    location: "Manhattan Skyline Tour",
-    status: "upcoming",
-    totalAmount: 4485,
-    passengers: 4
+    id: 2,
+    helicopterName: "Airbus H130",
+    date: "2025-05-15",
+    time: "2:30 PM",
+    duration: 1.5,
+    location: "City Skyline Tour",
+    price: 850,
+    status: "pending"
   },
   {
-    id: "B003",
-    helicopter: "Sikorsky S-76",
-    date: "2023-09-10",
-    time: "9:00 AM - 12:00 PM",
-    location: "Niagara Falls Experience",
-    status: "pending",
-    totalAmount: 9885,
-    passengers: 6
-  }
-];
-
-// Sample payment data
-const paymentsData = [
-  {
-    id: "P001",
-    bookingId: "B001",
-    date: "2023-06-14",
-    amount: 1590,
-    method: "Credit Card (**** 4582)",
+    id: 3,
+    helicopterName: "Robinson R66",
+    date: "2025-04-02",
+    time: "11:00 AM",
+    duration: 1,
+    location: "Coastal Tour",
+    price: 600,
     status: "completed"
-  },
-  {
-    id: "P002",
-    bookingId: "B002",
-    date: "2023-08-18",
-    amount: 4485,
-    method: "PayPal",
-    status: "completed"
-  },
-  {
-    id: "P003",
-    bookingId: "B003",
-    date: "2023-09-05",
-    amount: 4942.50, // 50% deposit
-    method: "Credit Card (**** 7891)",
-    status: "completed"
-  }
-];
-
-// Sample message data
-const messagesData = [
-  {
-    id: "M001",
-    date: "2023-08-30",
-    title: "Custom Pricing Approved",
-    content: "Your request for custom pricing on the Sikorsky S-76 booking has been approved. The new price is $9,885 for the 3-hour tour. Please confirm this booking within 48 hours.",
-    read: true
-  },
-  {
-    id: "M002",
-    date: "2023-09-02",
-    title: "Booking Confirmation",
-    content: "Your booking (B003) for the Niagara Falls Experience has been confirmed. Please remember to arrive 30 minutes before your scheduled departure time for safety briefing.",
-    read: false
   }
 ];
 
 const UserDashboard = () => {
   const [bookings, setBookings] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [currentTab, setCurrentTab] = useState("bookings");
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState(null);
-  const navigate = useNavigate();
+  const [userEmail, setUserEmail] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     // Check if user is logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    const userRole = localStorage.getItem('userRole');
-    const userEmail = localStorage.getItem('userEmail');
+    const isLoggedIn = localStorage.getItem('isLoggedIn');
+    const storedEmail = localStorage.getItem('userEmail');
     
-    if (!isLoggedIn || userRole !== 'user') {
-      toast({
-        title: "Access denied",
-        description: "Please log in to access your dashboard.",
-        variant: "destructive"
-      });
-      navigate('/login');
+    if (!isLoggedIn) {
+      // Redirect to login if not logged in
+      window.location.href = '/login';
       return;
     }
     
-    // Set user data
-    setUser({
-      email: userEmail,
-      name: "John Doe", // This would normally come from your backend
-      joinDate: "January 2023"
-    });
+    setUserEmail(storedEmail || 'User');
     
-    // Simulate loading data from backend
+    // Simulate fetching bookings from an API
     setTimeout(() => {
-      setBookings(bookingsData);
-      setPayments(paymentsData);
-      setMessages(messagesData);
+      setBookings(SAMPLE_BOOKINGS);
       setIsLoading(false);
     }, 1000);
-  }, [navigate, toast]);
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userEmail');
-    
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
-    
-    navigate('/login');
-  };
-
-  const markMessageAsRead = (messageId) => {
-    setMessages(messages.map(msg => 
-      msg.id === messageId ? { ...msg, read: true } : msg
+  const handleCancelBooking = (id) => {
+    // In a real app, you would make an API call to cancel the booking
+    setBookings(bookings.map(booking => 
+      booking.id === id ? {...booking, status: 'cancelled'} : booking
     ));
     
     toast({
-      title: "Message marked as read",
+      title: "Booking cancelled",
+      description: "Your booking has been successfully cancelled.",
+    });
+  };
+
+  const handleModifyBooking = (id) => {
+    // In a real app, you would navigate to a booking modification page
+    toast({
+      title: "Modify booking",
+      description: "This feature is coming soon!",
     });
   };
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-500">Completed</Badge>;
-      case "upcoming":
-        return <Badge className="bg-blue-500">Upcoming</Badge>;
-      case "pending":
+    switch(status) {
+      case 'confirmed':
+        return <Badge className="bg-green-500">Confirmed</Badge>;
+      case 'pending':
         return <Badge className="bg-yellow-500">Pending</Badge>;
-      case "cancelled":
+      case 'completed':
+        return <Badge className="bg-blue-500">Completed</Badge>;
+      case 'cancelled':
         return <Badge className="bg-red-500">Cancelled</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <div className="flex-grow flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-dejair-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-dejair-800">Loading your dashboard...</p>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       
-      <div className="flex-grow py-12 container-padding bg-gray-50">
+      <div className="flex-grow bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Sidebar */}
-            <div className="lg:w-1/4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="bg-dejair-100 text-dejair-800 p-3 rounded-full">
-                      <User className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <CardTitle>{user?.name}</CardTitle>
-                      <CardDescription>{user?.email}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
-                       onClick={() => setCurrentTab("bookings")}>
-                    <Calendar className="h-5 w-5 text-dejair-600" />
-                    <span className={currentTab === "bookings" ? "font-semibold text-dejair-800" : ""}>My Bookings</span>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
-                       onClick={() => setCurrentTab("payments")}>
-                    <CreditCard className="h-5 w-5 text-dejair-600" />
-                    <span className={currentTab === "payments" ? "font-semibold text-dejair-800" : ""}>Payment History</span>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
-                       onClick={() => setCurrentTab("messages")}>
-                    <MessageSquare className="h-5 w-5 text-dejair-600" />
-                    <span className={currentTab === "messages" ? "font-semibold text-dejair-800" : ""}>
-                      Messages
-                      {messages.some(msg => !msg.read) && (
-                        <Badge className="ml-2 bg-red-500">
-                          {messages.filter(msg => !msg.read).length}
-                        </Badge>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
-                       onClick={() => setCurrentTab("settings")}>
-                    <Settings className="h-5 w-5 text-dejair-600" />
-                    <span className={currentTab === "settings" ? "font-semibold text-dejair-800" : ""}>Account Settings</span>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    variant="outline" 
-                    className="w-full flex items-center gap-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Log Out</span>
-                  </Button>
-                </CardFooter>
-              </Card>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Welcome, {userEmail}</h1>
+              <p className="text-gray-600">Manage your helicopter bookings and preferences</p>
             </div>
-            
-            {/* Main Content */}
-            <div className="lg:w-3/4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {currentTab === "bookings" && "My Bookings"}
-                    {currentTab === "payments" && "Payment History"}
-                    {currentTab === "messages" && "Messages"}
-                    {currentTab === "settings" && "Account Settings"}
-                  </CardTitle>
-                  <CardDescription>
-                    {currentTab === "bookings" && "View and manage your helicopter bookings"}
-                    {currentTab === "payments" && "Review your payment history"}
-                    {currentTab === "messages" && "Communication with Dejair Skyline"}
-                    {currentTab === "settings" && "Manage your account preferences"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Bookings Tab */}
-                  {currentTab === "bookings" && (
-                    <div className="space-y-6">
-                      {bookings.length === 0 ? (
-                        <div className="text-center py-12">
-                          <p className="text-gray-500 mb-4">You don't have any bookings yet.</p>
-                          <Button 
-                            className="bg-dejair-600 hover:bg-dejair-700"
-                            onClick={() => navigate('/helicopters')}
-                          >
-                            Book a Helicopter
-                          </Button>
-                        </div>
-                      ) : (
-                        bookings.map((booking) => (
-                          <Card key={booking.id} className="shadow-sm hover:shadow-md transition-shadow">
-                            <CardHeader className="pb-2">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <CardTitle className="text-lg">{booking.helicopter}</CardTitle>
-                                  <CardDescription>{booking.location}</CardDescription>
-                                </div>
-                                {getStatusBadge(booking.status)}
-                              </div>
-                            </CardHeader>
-                            <CardContent className="pb-4">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-dejair-600" />
-                                  <span>{booking.date}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-dejair-600" />
-                                  <span>{booking.time}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-dejair-600" />
-                                  <span>{booking.location}</span>
-                                </div>
-                              </div>
-                              <div className="mt-4">
-                                <div className="text-sm text-gray-500">Booking ID: {booking.id}</div>
-                                <div className="text-sm">Passengers: {booking.passengers}</div>
-                                <div className="font-semibold mt-2">Total Amount: ${booking.totalAmount}</div>
-                              </div>
-                            </CardContent>
-                            <CardFooter className="pt-0">
-                              {booking.status === "upcoming" && (
-                                <Button variant="outline" className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                  Cancel Booking
-                                </Button>
-                              )}
-                              {booking.status === "completed" && (
-                                <Button variant="outline">
-                                  Book Again
-                                </Button>
-                              )}
-                            </CardFooter>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Payments Tab */}
-                  {currentTab === "payments" && (
-                    <div className="space-y-6">
-                      {payments.length === 0 ? (
-                        <div className="text-center py-12">
-                          <p className="text-gray-500">No payment history available.</p>
-                        </div>
-                      ) : (
-                        payments.map((payment) => (
-                          <Card key={payment.id} className="shadow-sm hover:shadow-md transition-shadow">
-                            <CardHeader className="pb-2">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <CardTitle className="text-lg">Payment #{payment.id}</CardTitle>
-                                  <CardDescription>For Booking #{payment.bookingId}</CardDescription>
-                                </div>
-                                {payment.status === "completed" ? (
-                                  <Badge className="bg-green-500">Completed</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-yellow-500 border-yellow-500">Pending</Badge>
-                                )}
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                  <div className="text-sm text-gray-500">Date</div>
-                                  <div>{payment.date}</div>
-                                </div>
-                                <div>
-                                  <div className="text-sm text-gray-500">Amount</div>
-                                  <div className="font-semibold">${payment.amount}</div>
-                                </div>
-                                <div>
-                                  <div className="text-sm text-gray-500">Payment Method</div>
-                                  <div>{payment.method}</div>
-                                </div>
-                              </div>
-                            </CardContent>
-                            <CardFooter className="pt-0">
-                              <Button variant="outline">Download Receipt</Button>
-                            </CardFooter>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Messages Tab */}
-                  {currentTab === "messages" && (
-                    <div className="space-y-6">
-                      {messages.length === 0 ? (
-                        <div className="text-center py-12">
-                          <p className="text-gray-500">You have no messages.</p>
-                        </div>
-                      ) : (
-                        messages.map((message) => (
-                          <Card key={message.id} className={`shadow-sm hover:shadow-md transition-shadow ${!message.read ? 'border-l-4 border-dejair-600' : ''}`}>
-                            <CardHeader className="pb-2">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <CardTitle className="text-lg flex items-center">
-                                    {message.title}
-                                    {!message.read && (
-                                      <Badge className="ml-2 bg-dejair-600">New</Badge>
-                                    )}
-                                  </CardTitle>
-                                  <CardDescription>{message.date}</CardDescription>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <p>{message.content}</p>
-                            </CardContent>
-                            <CardFooter className="flex justify-between">
-                              <Button variant="outline">Reply</Button>
-                              {!message.read && (
-                                <Button 
-                                  variant="ghost" 
-                                  onClick={() => markMessageAsRead(message.id)}
-                                >
-                                  Mark as Read
-                                </Button>
-                              )}
-                            </CardFooter>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Settings Tab */}
-                  {currentTab === "settings" && (
-                    <div className="space-y-6">
-                      <div className="text-center py-12">
-                        <p className="text-gray-500 mb-4">Account settings are currently unavailable.</p>
-                        <p className="text-sm text-gray-400">This feature will be available in the next update.</p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <Link to="/helicopters">
+              <Button className="bg-dejair-600 hover:bg-dejair-700">
+                Book a Helicopter
+              </Button>
+            </Link>
           </div>
+          
+          <Tabs defaultValue="upcoming" className="space-y-6">
+            <TabsList className="bg-white border">
+              <TabsTrigger value="upcoming">Upcoming Bookings</TabsTrigger>
+              <TabsTrigger value="past">Past Bookings</TabsTrigger>
+              <TabsTrigger value="all">All Bookings</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="upcoming" className="space-y-6">
+              {isLoading ? (
+                <div className="text-center py-10">
+                  <p>Loading your bookings...</p>
+                </div>
+              ) : bookings.filter(b => ['confirmed', 'pending'].includes(b.status)).length === 0 ? (
+                <div className="text-center py-10 bg-white rounded-lg shadow-sm">
+                  <p className="text-gray-500 mb-4">You don't have any upcoming bookings</p>
+                  <Link to="/helicopters">
+                    <Button className="bg-dejair-600 hover:bg-dejair-700">
+                      Book a Helicopter
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                bookings
+                  .filter(booking => ['confirmed', 'pending'].includes(booking.status))
+                  .map(booking => (
+                    <BookingCard 
+                      key={booking.id}
+                      booking={booking}
+                      onCancel={() => handleCancelBooking(booking.id)}
+                      onModify={() => handleModifyBooking(booking.id)}
+                      statusBadge={getStatusBadge(booking.status)}
+                    />
+                  ))
+              )}
+            </TabsContent>
+            
+            <TabsContent value="past" className="space-y-6">
+              {isLoading ? (
+                <div className="text-center py-10">
+                  <p>Loading your bookings...</p>
+                </div>
+              ) : bookings.filter(b => ['completed', 'cancelled'].includes(b.status)).length === 0 ? (
+                <div className="text-center py-10 bg-white rounded-lg shadow-sm">
+                  <p className="text-gray-500">You don't have any past bookings</p>
+                </div>
+              ) : (
+                bookings
+                  .filter(booking => ['completed', 'cancelled'].includes(booking.status))
+                  .map(booking => (
+                    <BookingCard 
+                      key={booking.id}
+                      booking={booking}
+                      isPast={true}
+                      statusBadge={getStatusBadge(booking.status)}
+                    />
+                  ))
+              )}
+            </TabsContent>
+            
+            <TabsContent value="all" className="space-y-6">
+              {isLoading ? (
+                <div className="text-center py-10">
+                  <p>Loading your bookings...</p>
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center py-10 bg-white rounded-lg shadow-sm">
+                  <p className="text-gray-500 mb-4">You don't have any bookings</p>
+                  <Link to="/helicopters">
+                    <Button className="bg-dejair-600 hover:bg-dejair-700">
+                      Book a Helicopter
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                bookings.map(booking => (
+                  <BookingCard 
+                    key={booking.id}
+                    booking={booking}
+                    onCancel={['confirmed', 'pending'].includes(booking.status) ? () => handleCancelBooking(booking.id) : null}
+                    onModify={['confirmed', 'pending'].includes(booking.status) ? () => handleModifyBooking(booking.id) : null}
+                    isPast={['completed', 'cancelled'].includes(booking.status)}
+                    statusBadge={getStatusBadge(booking.status)}
+                  />
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
       
       <Footer />
     </div>
+  );
+};
+
+const BookingCard = ({ booking, onCancel, onModify, isPast = false, statusBadge }) => {
+  return (
+    <Card className="shadow-sm hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-start justify-between pb-2">
+        <div>
+          <CardTitle className="text-xl font-bold">{booking.helicopterName}</CardTitle>
+          <CardDescription>{booking.location}</CardDescription>
+        </div>
+        <div>{statusBadge}</div>
+      </CardHeader>
+      <CardContent className="pb-2">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="h-4 w-4 text-dejair-600" />
+            <span className="text-sm">{booking.date}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-dejair-600" />
+            <span className="text-sm">{booking.time} ({booking.duration} {booking.duration > 1 ? 'hours' : 'hour'})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-dejair-600" />
+            <span className="text-sm">{booking.location}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Helicopter className="h-4 w-4 text-dejair-600" />
+            <span className="text-sm">{booking.helicopterName}</span>
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="text-right font-bold text-dejair-800">${booking.price.toLocaleString()}</p>
+        </div>
+      </CardContent>
+      {!isPast && (onCancel || onModify) && (
+        <CardFooter className="flex justify-end space-x-2 pt-2">
+          {onModify && (
+            <Button variant="outline" size="sm" onClick={onModify}>
+              <PenLine className="mr-1 h-4 w-4" />
+              Modify
+            </Button>
+          )}
+          {onCancel && (
+            <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={onCancel}>
+              <Ban className="mr-1 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+        </CardFooter>
+      )}
+    </Card>
   );
 };
 
