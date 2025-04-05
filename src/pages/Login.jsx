@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import authService from '../services/authService';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -22,14 +23,14 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    // This is a mock login function
-    // In a real app, this would connect to your backend/authentication service
-    setTimeout(() => {
-      // Check if this is admin login (example only)
-      if (email === 'admin@dejair.com' && password === 'admin123') {
+    try {
+      // First try admin login
+      const isAdminEmail = email.endsWith('@dejair.com');
+      let userData;
+      
+      if (isAdminEmail) {
+        userData = await authService.adminLogin(email, password);
         localStorage.setItem('userRole', 'admin');
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', email);
         toast({
           title: "Admin login successful",
           description: "Welcome back, admin!",
@@ -37,9 +38,8 @@ const Login = () => {
         navigate('/admin-dashboard');
       } else {
         // Regular user login
+        userData = await authService.login(email, password);
         localStorage.setItem('userRole', 'user');
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', email);
         toast({
           title: "Login successful",
           description: "Welcome back!",
@@ -47,8 +47,17 @@ const Login = () => {
         navigate('/user-dashboard');
       }
       
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userEmail', email);
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
