@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Users, ChevronDown, Bell, Search, Helicopter, 
+  Users, ChevronDown, Bell, Search, Plane, 
   Calendar, DollarSign, UserPlus, Edit, Trash2,
   Check, X
 } from 'lucide-react';
@@ -275,7 +274,7 @@ const AdminDashboard = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">Pending Bookings</CardTitle>
-              <Helicopter className="h-4 w-4 text-dejair-600" />
+              <Plane className="h-4 w-4 text-dejair-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{todayStats.pendingBookings}</div>
