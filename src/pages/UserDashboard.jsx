@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarCheck, Clock, MapPin, Helicopter, PenLine, Ban, ArrowLeft } from 'lucide-react';
+import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban, ArrowLeft } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -243,7 +243,7 @@ const BookingCard = ({ booking, onCancel, onModify, isPast = false, statusBadge 
             <span className="text-sm">{booking.location}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Helicopter className="h-4 w-4 text-dejair-600" />
+            <Plane className="h-4 w-4 text-dejair-600" />
             <span className="text-sm">{booking.helicopterName}</span>
           </div>
         </div>
