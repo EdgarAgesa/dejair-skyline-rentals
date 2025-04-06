@@ -16,6 +16,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -24,11 +25,10 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // First try admin login
-      const isAdminEmail = email.endsWith('@dejair.com');
       let userData;
       
-      if (isAdminEmail) {
+      if (isAdminLogin) {
+        // Try admin login
         userData = await authService.adminLogin(email, password);
         localStorage.setItem('userRole', 'admin');
         toast({
@@ -109,6 +109,16 @@ const Login = () => {
                   />
                   <Label htmlFor="remember" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                     Remember me
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="adminLogin" 
+                    checked={isAdminLogin}
+                    onCheckedChange={setIsAdminLogin}
+                  />
+                  <Label htmlFor="adminLogin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Log in as administrator
                   </Label>
                 </div>
                 <Button type="submit" className="w-full bg-dejair-600 hover:bg-dejair-700" disabled={isLoading}>
