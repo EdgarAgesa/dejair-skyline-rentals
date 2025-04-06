@@ -1,55 +1,48 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban } from 'lucide-react';
+import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban, DollarSign } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import authService from '../services/authService';
-
-// Sample booking data - in a real app, this would come from your backend
-const SAMPLE_BOOKINGS = [
-  {
-    id: 1,
-    helicopterName: "Bell 407GXi",
-    date: "2025-05-10",
-    time: "10:00 AM",
-    duration: 2,
-    location: "Grand Canyon Tour",
-    price: 1200,
-    status: "confirmed"
-  },
-  {
-    id: 2,
-    helicopterName: "Airbus H130",
-    date: "2025-05-15",
-    time: "2:30 PM",
-    duration: 1.5,
-    location: "City Skyline Tour",
-    price: 850,
-    status: "pending"
-  },
-  {
-    id: 3,
-    helicopterName: "Robinson R66",
-    date: "2025-04-02",
-    time: "11:00 AM",
-    duration: 1,
-    location: "Coastal Tour",
-    price: 600,
-    status: "completed"
-  }
-];
+import bookingService from '../services/bookingService';
 
 const UserDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('User');
+  const [activeBookingId, setActiveBookingId] = useState(null);
+  const [negotiationAmount, setNegotiationAmount] = useState('');
+  const [negotiationNotes, setNegotiationNotes] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [showNegotiationDialog, setShowNegotiationDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [isNegotiatedPayment, setIsNegotiatedPayment] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const fetchBookings = async () => {
+    try {
+      setIsLoading(true);
+      const data = await bookingService.getClientBookings();
+      setBookings(data);
+    } catch (error) {
+      toast({
+        title: "Error fetching bookings",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Check if user is logged in
@@ -73,34 +66,118 @@ const UserDashboard = () => {
       return;
     }
     
-    // Set user name - in a real app, this would come from user data
-    setUserName('User');
+    // Get user data
+    const user = authService.getCurrentUser();
+    if (user && user.name) {
+      setUserName(user.name);
+    }
     
-    // Simulate fetching bookings from an API
-    setTimeout(() => {
-      setBookings(SAMPLE_BOOKINGS);
-      setIsLoading(false);
-    }, 1000);
+    // Fetch user bookings
+    fetchBookings();
   }, [navigate, toast]);
 
   const handleCancelBooking = (id) => {
     // In a real app, you would make an API call to cancel the booking
-    setBookings(bookings.map(booking => 
-      booking.id === id ? {...booking, status: 'cancelled'} : booking
-    ));
-    
     toast({
-      title: "Booking cancelled",
-      description: "Your booking has been successfully cancelled.",
+      title: "Cancel booking",
+      description: "This feature is coming soon!",
     });
   };
 
-  const handleModifyBooking = (id) => {
-    // In a real app, you would navigate to a booking modification page
-    toast({
-      title: "Modify booking",
-      description: "This feature is coming soon!",
-    });
+  const openNegotiationDialog = (booking) => {
+    setActiveBookingId(booking.id);
+    setNegotiationAmount(booking.original_amount * 0.9); // Suggest 10% discount
+    setShowNegotiationDialog(true);
+  };
+
+  const closeNegotiationDialog = () => {
+    setShowNegotiationDialog(false);
+    setActiveBookingId(null);
+    setNegotiationAmount('');
+    setNegotiationNotes('');
+  };
+
+  const openPaymentDialog = (booking, isNegotiated = false) => {
+    setActiveBookingId(booking.id);
+    setIsNegotiatedPayment(isNegotiated);
+    setShowPaymentDialog(true);
+  };
+
+  const closePaymentDialog = () => {
+    setShowPaymentDialog(false);
+    setActiveBookingId(null);
+    setPhoneNumber('');
+    setIsNegotiatedPayment(false);
+  };
+
+  const handleRequestNegotiation = async () => {
+    try {
+      const response = await bookingService.requestNegotiation(activeBookingId, {
+        negotiatedAmount: parseFloat(negotiationAmount),
+        notes: negotiationNotes
+      });
+      
+      toast({
+        title: "Negotiation requested",
+        description: "Your price negotiation request has been submitted successfully.",
+      });
+      
+      // Update the booking in the UI
+      setBookings(bookings.map(booking => 
+        booking.id === activeBookingId 
+          ? { 
+              ...booking, 
+              status: "negotiation_requested",
+              negotiation_status: "requested",
+              final_amount: parseFloat(negotiationAmount)
+            } 
+          : booking
+      ));
+      
+      closeNegotiationDialog();
+      fetchBookings(); // Refresh bookings
+    } catch (error) {
+      toast({
+        title: "Error requesting negotiation",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleProcessPayment = async () => {
+    try {
+      let response;
+      
+      if (isNegotiatedPayment) {
+        response = await bookingService.processNegotiatedPayment(activeBookingId, {
+          phoneNumber: phoneNumber
+        });
+      } else {
+        response = await bookingService.processDirectPayment(activeBookingId, {
+          phoneNumber: phoneNumber
+        });
+      }
+      
+      toast({
+        title: "Payment initiated",
+        description: "Please check your phone for the M-Pesa payment request.",
+      });
+      
+      closePaymentDialog();
+      
+      // Set a timeout to refresh bookings after a few seconds
+      setTimeout(() => {
+        fetchBookings();
+      }, 5000);
+      
+    } catch (error) {
+      toast({
+        title: "Error processing payment",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -109,10 +186,33 @@ const UserDashboard = () => {
         return <Badge className="bg-green-500">Confirmed</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-500">Pending</Badge>;
+      case 'negotiation_requested':
+        return <Badge className="bg-blue-500">Negotiation Requested</Badge>;
+      case 'pending_payment':
+        return <Badge className="bg-purple-500">Pending Payment</Badge>;
+      case 'paid':
+        return <Badge className="bg-green-500">Paid</Badge>;
       case 'completed':
         return <Badge className="bg-blue-500">Completed</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-500">Cancelled</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const getNegotiationStatusBadge = (status) => {
+    switch(status) {
+      case 'none':
+        return null;
+      case 'requested':
+        return <Badge className="bg-blue-500">Requested</Badge>;
+      case 'counter_offer':
+        return <Badge className="bg-purple-500">Counter Offer</Badge>;
+      case 'accepted':
+        return <Badge className="bg-green-500">Accepted</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-500">Rejected</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -136,21 +236,21 @@ const UserDashboard = () => {
             </Link>
           </div>
           
-          <Tabs defaultValue="upcoming" className="space-y-6">
+          <Tabs defaultValue="all" className="space-y-6">
             <TabsList className="bg-white border">
-              <TabsTrigger value="upcoming">Upcoming Bookings</TabsTrigger>
-              <TabsTrigger value="past">Past Bookings</TabsTrigger>
+              <TabsTrigger value="pending">Pending Bookings</TabsTrigger>
+              <TabsTrigger value="paid">Paid Bookings</TabsTrigger>
               <TabsTrigger value="all">All Bookings</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="upcoming" className="space-y-6">
+            <TabsContent value="pending" className="space-y-6">
               {isLoading ? (
                 <div className="text-center py-10">
                   <p>Loading your bookings...</p>
                 </div>
-              ) : bookings.filter(b => ['confirmed', 'pending'].includes(b.status)).length === 0 ? (
+              ) : bookings.filter(b => ['pending', 'negotiation_requested', 'pending_payment'].includes(b.status)).length === 0 ? (
                 <div className="text-center py-10 bg-white rounded-lg shadow-sm">
-                  <p className="text-gray-500 mb-4">You don't have any upcoming bookings</p>
+                  <p className="text-gray-500 mb-4">You don't have any pending bookings</p>
                   <Link to="/helicopters">
                     <Button className="bg-dejair-600 hover:bg-dejair-700">
                       Book a Helicopter
@@ -159,37 +259,41 @@ const UserDashboard = () => {
                 </div>
               ) : (
                 bookings
-                  .filter(booking => ['confirmed', 'pending'].includes(booking.status))
+                  .filter(booking => ['pending', 'negotiation_requested', 'pending_payment'].includes(booking.status))
                   .map(booking => (
                     <BookingCard 
                       key={booking.id}
                       booking={booking}
                       onCancel={() => handleCancelBooking(booking.id)}
-                      onModify={() => handleModifyBooking(booking.id)}
+                      onNegotiate={() => openNegotiationDialog(booking)}
+                      onPayNow={() => openPaymentDialog(booking, false)}
+                      onPayNegotiated={() => openPaymentDialog(booking, true)}
                       statusBadge={getStatusBadge(booking.status)}
+                      negotiationStatusBadge={getNegotiationStatusBadge(booking.negotiation_status)}
                     />
                   ))
               )}
             </TabsContent>
             
-            <TabsContent value="past" className="space-y-6">
+            <TabsContent value="paid" className="space-y-6">
               {isLoading ? (
                 <div className="text-center py-10">
                   <p>Loading your bookings...</p>
                 </div>
-              ) : bookings.filter(b => ['completed', 'cancelled'].includes(b.status)).length === 0 ? (
+              ) : bookings.filter(b => ['paid', 'confirmed', 'completed'].includes(b.status)).length === 0 ? (
                 <div className="text-center py-10 bg-white rounded-lg shadow-sm">
-                  <p className="text-gray-500">You don't have any past bookings</p>
+                  <p className="text-gray-500">You don't have any paid bookings</p>
                 </div>
               ) : (
                 bookings
-                  .filter(booking => ['completed', 'cancelled'].includes(booking.status))
+                  .filter(booking => ['paid', 'confirmed', 'completed'].includes(booking.status))
                   .map(booking => (
                     <BookingCard 
                       key={booking.id}
                       booking={booking}
-                      isPast={true}
+                      isPaid={true}
                       statusBadge={getStatusBadge(booking.status)}
+                      negotiationStatusBadge={getNegotiationStatusBadge(booking.negotiation_status)}
                     />
                   ))
               )}
@@ -214,10 +318,17 @@ const UserDashboard = () => {
                   <BookingCard 
                     key={booking.id}
                     booking={booking}
-                    onCancel={['confirmed', 'pending'].includes(booking.status) ? () => handleCancelBooking(booking.id) : null}
-                    onModify={['confirmed', 'pending'].includes(booking.status) ? () => handleModifyBooking(booking.id) : null}
-                    isPast={['completed', 'cancelled'].includes(booking.status)}
+                    onCancel={['pending', 'negotiation_requested'].includes(booking.status) ? () => handleCancelBooking(booking.id) : null}
+                    onNegotiate={booking.status === 'pending' ? () => openNegotiationDialog(booking) : null}
+                    onPayNow={booking.status === 'pending' ? () => openPaymentDialog(booking, false) : null}
+                    onPayNegotiated={
+                      booking.status === 'negotiation_requested' && 
+                      booking.negotiation_status === 'accepted' ? 
+                      () => openPaymentDialog(booking, true) : null
+                    }
+                    isPaid={['paid', 'confirmed', 'completed'].includes(booking.status)}
                     statusBadge={getStatusBadge(booking.status)}
+                    negotiationStatusBadge={getNegotiationStatusBadge(booking.negotiation_status)}
                   />
                 ))
               )}
@@ -226,20 +337,112 @@ const UserDashboard = () => {
         </div>
       </div>
       
+      {/* Negotiation Dialog */}
+      <Dialog open={showNegotiationDialog} onOpenChange={setShowNegotiationDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Request Price Negotiation</DialogTitle>
+            <DialogDescription>
+              Enter your proposed price and reason for negotiation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="amount" className="text-right">
+                Amount
+              </label>
+              <Input
+                id="amount"
+                type="number"
+                value={negotiationAmount}
+                onChange={(e) => setNegotiationAmount(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="notes" className="text-right">
+                Notes
+              </label>
+              <Input
+                id="notes"
+                value={negotiationNotes}
+                onChange={(e) => setNegotiationNotes(e.target.value)}
+                placeholder="Reason for requesting discount"
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeNegotiationDialog}>
+              Cancel
+            </Button>
+            <Button type="submit" onClick={handleRequestNegotiation}>
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Process Payment</DialogTitle>
+            <DialogDescription>
+              Enter your M-Pesa phone number to receive payment prompt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="phone" className="text-right">
+                Phone
+              </label>
+              <Input
+                id="phone"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="254712345678"
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePaymentDialog}>
+              Cancel
+            </Button>
+            <Button type="submit" onClick={handleProcessPayment}>
+              Pay Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <Footer />
     </div>
   );
 };
 
-const BookingCard = ({ booking, onCancel, onModify, isPast = false, statusBadge }) => {
+const BookingCard = ({ 
+  booking, 
+  onCancel, 
+  onNegotiate,
+  onPayNow,
+  onPayNegotiated,
+  isPaid = false, 
+  statusBadge,
+  negotiationStatusBadge
+}) => {
   return (
     <Card className="shadow-sm hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div>
-          <CardTitle className="text-xl font-bold">{booking.helicopterName}</CardTitle>
-          <CardDescription>{booking.location}</CardDescription>
+          <CardTitle className="text-xl font-bold">{booking.helicopter?.model || "Helicopter"}</CardTitle>
+          <CardDescription>{booking.purpose || "Helicopter booking"}</CardDescription>
         </div>
-        <div>{statusBadge}</div>
+        <div className="flex space-x-2">
+          {statusBadge}
+          {negotiationStatusBadge}
+        </div>
       </CardHeader>
       <CardContent className="pb-2">
         <div className="grid grid-cols-2 gap-4">
@@ -249,27 +452,48 @@ const BookingCard = ({ booking, onCancel, onModify, isPast = false, statusBadge 
           </div>
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.time} ({booking.duration} {booking.duration > 1 ? 'hours' : 'hour'})</span>
+            <span className="text-sm">{booking.time}</span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.location}</span>
+            <span className="text-sm">{booking.location || "Location not specified"}</span>
           </div>
           <div className="flex items-center gap-2">
             <Plane className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.helicopterName}</span>
+            <span className="text-sm">Passengers: {booking.num_passengers || 1}</span>
           </div>
         </div>
-        <div className="mt-4">
-          <p className="text-right font-bold text-dejair-800">${booking.price.toLocaleString()}</p>
+        <div className="mt-4 flex justify-between items-center">
+          {booking.negotiation_status !== 'none' && (
+            <div className="flex flex-col">
+              <span className="text-sm text-gray-500">Original Price:</span>
+              <span className="line-through text-gray-500">${booking.original_amount?.toLocaleString() || 0}</span>
+            </div>
+          )}
+          <div className="flex flex-col ml-auto text-right">
+            <span className="text-sm text-gray-500">Final Price:</span>
+            <span className="font-bold text-dejair-800">${booking.final_amount?.toLocaleString() || booking.original_amount?.toLocaleString() || 0}</span>
+          </div>
         </div>
       </CardContent>
-      {!isPast && (onCancel || onModify) && (
+      {!isPaid && (
         <CardFooter className="flex justify-end space-x-2 pt-2">
-          {onModify && (
-            <Button variant="outline" size="sm" onClick={onModify}>
+          {onNegotiate && (
+            <Button variant="outline" size="sm" onClick={onNegotiate}>
               <PenLine className="mr-1 h-4 w-4" />
-              Modify
+              Negotiate
+            </Button>
+          )}
+          {onPayNow && (
+            <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={onPayNow}>
+              <DollarSign className="mr-1 h-4 w-4" />
+              Pay Now
+            </Button>
+          )}
+          {onPayNegotiated && (
+            <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={onPayNegotiated}>
+              <DollarSign className="mr-1 h-4 w-4" />
+              Pay Negotiated
             </Button>
           )}
           {onCancel && (

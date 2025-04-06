@@ -129,6 +129,63 @@ const bookingService = {
     }
   },
   
+  // Request price negotiation
+  async requestNegotiation(id, negotiationData) {
+    try {
+      const response = await fetch(`${API_URL}/booking/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          negotiation_request: true,
+          negotiated_amount: negotiationData.negotiatedAmount,
+          notes: negotiationData.notes
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to request negotiation');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error requesting negotiation:', error);
+      throw error;
+    }
+  },
+  
+  // Process direct payment
+  async processDirectPayment(id, paymentData) {
+    try {
+      const response = await fetch(`${API_URL}/booking/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          payment: true,
+          phone_number: paymentData.phoneNumber
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to process payment');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      throw error;
+    }
+  },
+  
   // Process negotiated payment
   async processNegotiatedPayment(id, paymentData) {
     try {
@@ -138,7 +195,9 @@ const bookingService = {
           ...authService.getAuthHeader(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(paymentData),
+        body: JSON.stringify({
+          phone_number: paymentData.phoneNumber
+        }),
       });
       
       const data = await response.json();
@@ -222,6 +281,35 @@ const bookingService = {
       return data;
     } catch (error) {
       console.error('Error fetching completed bookings:', error);
+      throw error;
+    }
+  },
+  
+  // Admin: Handle negotiation (accept/reject/counter)
+  async handleNegotiation(id, negotiationData) {
+    try {
+      const response = await fetch(`${API_URL}/booking/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          negotiation_action: negotiationData.action,
+          final_amount: negotiationData.finalAmount,
+          notes: negotiationData.notes
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to handle negotiation');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error handling negotiation:', error);
       throw error;
     }
   }
