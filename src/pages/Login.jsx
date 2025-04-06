@@ -30,16 +30,20 @@ const Login = () => {
       if (isAdminLogin) {
         // Try admin login
         userData = await authService.adminLogin(email, password);
-        localStorage.setItem('userRole', 'admin');
         toast({
           title: "Admin login successful",
           description: "Welcome back, admin!",
         });
-        navigate('/admin-dashboard');
+        
+        // Check if superadmin
+        if (userData.is_superadmin) {
+          navigate('/admin-dashboard');
+        } else {
+          navigate('/admin-dashboard');
+        }
       } else {
         // Regular user login
         userData = await authService.login(email, password);
-        localStorage.setItem('userRole', 'user');
         toast({
           title: "Login successful",
           description: "Welcome back!",
@@ -47,8 +51,10 @@ const Login = () => {
         navigate('/user-dashboard');
       }
       
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userEmail', email);
+      // If "Remember me" is not checked, set a session storage flag
+      if (!rememberMe) {
+        sessionStorage.setItem('session_only', 'true');
+      }
     } catch (error) {
       toast({
         title: "Login failed",
@@ -89,7 +95,7 @@ const Login = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
-                    <Link to="#" className="text-sm font-medium text-dejair-600 hover:text-dejair-800">
+                    <Link to="/forgot-password" className="text-sm font-medium text-dejair-600 hover:text-dejair-800">
                       Forgot password?
                     </Link>
                   </div>

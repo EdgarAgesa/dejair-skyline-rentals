@@ -22,8 +22,11 @@ const authService = {
         throw new Error(data.message || 'Registration failed');
       }
       
-      if (data.token) {
-        localStorage.setItem('user', JSON.stringify(data));
+      if (data.access_token) {
+        localStorage.setItem('user', JSON.stringify({
+          token: data.access_token,
+          role: 'user'
+        }));
       }
       
       return data;
@@ -50,8 +53,11 @@ const authService = {
         throw new Error(data.message || 'Login failed');
       }
       
-      if (data.token) {
-        localStorage.setItem('user', JSON.stringify(data));
+      if (data.access_token) {
+        localStorage.setItem('user', JSON.stringify({
+          token: data.access_token,
+          role: 'user'
+        }));
       }
       
       return data;
@@ -78,8 +84,11 @@ const authService = {
         throw new Error(data.message || 'Admin login failed');
       }
       
-      if (data.token) {
-        localStorage.setItem('user', JSON.stringify(data));
+      if (data.access_token) {
+        localStorage.setItem('user', JSON.stringify({
+          token: data.access_token,
+          role: data.is_superadmin ? 'superadmin' : 'admin'
+        }));
       }
       
       return data;
@@ -105,13 +114,19 @@ const authService = {
     return !!user;
   },
   
-  // Check if user is admin
+  // Check if user is admin or superadmin
   isAdmin() {
     const user = this.getCurrentUser();
     return user && (user.role === 'admin' || user.role === 'superadmin');
   },
   
-  // Get auth header
+  // Check if user is superadmin
+  isSuperAdmin() {
+    const user = this.getCurrentUser();
+    return user && user.role === 'superadmin';
+  },
+  
+  // Get auth header for API requests
   getAuthHeader() {
     const user = this.getCurrentUser();
     if (user && user.token) {
