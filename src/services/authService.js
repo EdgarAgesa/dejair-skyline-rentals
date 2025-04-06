@@ -2,7 +2,7 @@
 // Authentication service for DejAir booking system
 // Handles API calls to the backend auth endpoints
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://heli-91dn.onrender.com';
 
 const authService = {
   // Register a new client

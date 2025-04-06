@@ -4,7 +4,7 @@
 
 import authService from './authService';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://heli-91dn.onrender.com';
 
 const bookingService = {
   // Get client's bookings
