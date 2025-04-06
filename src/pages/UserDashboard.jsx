@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import authService from '../services/authService';
 
 // Sample booking data - in a real app, this would come from your backend
 const SAMPLE_BOOKINGS = [
@@ -47,28 +47,41 @@ const SAMPLE_BOOKINGS = [
 const UserDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('User');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    const storedEmail = localStorage.getItem('userEmail');
+    const isLoggedIn = authService.isLoggedIn();
+    const isAdmin = authService.isAdmin();
     
     if (!isLoggedIn) {
       // Redirect to login if not logged in
-      window.location.href = '/login';
+      toast({
+        title: "Authentication required",
+        description: "Please log in to access your dashboard",
+        variant: "destructive",
+      });
+      navigate('/login');
       return;
     }
     
-    setUserEmail(storedEmail || 'User');
+    if (isAdmin) {
+      // Redirect admins to admin dashboard
+      navigate('/admin-dashboard');
+      return;
+    }
+    
+    // Set user name - in a real app, this would come from user data
+    setUserName('User');
     
     // Simulate fetching bookings from an API
     setTimeout(() => {
       setBookings(SAMPLE_BOOKINGS);
       setIsLoading(false);
     }, 1000);
-  }, []);
+  }, [navigate, toast]);
 
   const handleCancelBooking = (id) => {
     // In a real app, you would make an API call to cancel the booking
@@ -113,7 +126,7 @@ const UserDashboard = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Welcome, {userEmail}</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Welcome, {userName}</h1>
               <p className="text-gray-600">Manage your helicopter bookings and preferences</p>
             </div>
             <Link to="/helicopters">
