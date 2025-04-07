@@ -22,43 +22,40 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both email and password",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      let userData;
+      // Determine which login method to use early
+      const loginMethod = isAdminLogin ? authService.adminLogin : authService.login;
+      const destination = isAdminLogin ? '/admin-dashboard' : '/user-dashboard';
+      const successTitle = isAdminLogin ? "Admin login successful" : "Login successful";
       
-      if (isAdminLogin) {
-        // Try admin login
-        userData = await authService.adminLogin(email, password);
-        
-        toast({
-          title: "Admin login successful",
-          description: "Welcome back, admin!",
-        });
-        
-        // Set session storage flag if "Remember me" is not checked
-        if (!rememberMe) {
-          sessionStorage.setItem('session_only', 'true');
-        }
-        
-        // Navigate to admin dashboard
-        navigate('/admin-dashboard');
-      } else {
-        // Regular user login
-        userData = await authService.login(email, password);
-        
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        });
-        
-        // Set session storage flag if "Remember me" is not checked
-        if (!rememberMe) {
-          sessionStorage.setItem('session_only', 'true');
-        }
-        
-        navigate('/user-dashboard');
+      // Execute the login
+      const userData = await loginMethod(email, password);
+      
+      // Handle remember me option
+      if (!rememberMe) {
+        sessionStorage.setItem('session_only', 'true');
       }
+      
+      // Show success toast and navigate immediately
+      toast({
+        title: successTitle,
+        description: "Welcome back!",
+      });
+      
+      // Navigate directly without further processing
+      navigate(destination);
     } catch (error) {
       toast({
         title: "Login failed",
@@ -94,6 +91,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -109,6 +107,7 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete={isAdminLogin ? "current-password" : "current-password"}
                   />
                 </div>
                 <div className="flex items-center space-x-2">

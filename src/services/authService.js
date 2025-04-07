@@ -39,12 +39,15 @@ const authService = {
   // Login as client
   async login(email, password) {
     try {
+      // Use more efficient fetch options
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        // Add cache control headers to prevent caching
+        cache: 'no-cache',
       });
       
       const data = await response.json();
@@ -58,6 +61,9 @@ const authService = {
           token: data.access_token,
           role: 'user'
         }));
+        
+        // Dispatch storage event immediately
+        window.dispatchEvent(new Event('storage'));
       }
       
       return data;
@@ -70,12 +76,15 @@ const authService = {
   // Login as admin
   async adminLogin(email, password) {
     try {
+      // Use more efficient fetch options
       const response = await fetch(`${API_URL}/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        // Add cache control headers to prevent caching
+        cache: 'no-cache',
       });
       
       const data = await response.json();
