@@ -16,6 +16,7 @@ const chatService = {
           ...authService.getAuthHeader(),
           'Content-Type': 'application/json',
         },
+        cache: 'no-cache', // Ensure fresh data
       });
       
       const data = await response.json();
@@ -56,11 +57,11 @@ const chatService = {
     }
   },
   
-  // Get negotiation chats
-  async getNegotiationChats() {
+  // Mark messages as read
+  async markMessagesAsRead(bookingId) {
     try {
-      const response = await fetch(`${API_URL}/negotiation-chats`, {
-        method: 'GET',
+      const response = await fetch(`${API_URL}/booking/${bookingId}/chat/read`, {
+        method: 'PUT',
         headers: {
           ...authService.getAuthHeader(),
           'Content-Type': 'application/json',
@@ -70,12 +71,37 @@ const chatService = {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch negotiation chats');
+        throw new Error(data.message || 'Failed to mark messages as read');
       }
       
       return data;
     } catch (error) {
-      console.error('Error fetching negotiation chats:', error);
+      console.error('Error marking messages as read:', error);
+      throw error;
+    }
+  },
+  
+  // Get unread message count
+  async getUnreadMessageCount() {
+    try {
+      const response = await fetch(`${API_URL}/chat/unread`, {
+        method: 'GET',
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-cache', // Ensure fresh data
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch unread count');
+      }
+      
+      return data.count;
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
       throw error;
     }
   }
