@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Users, ChevronDown, Bell, Search, Plane, 
   Calendar, DollarSign, UserPlus, Edit, Trash2,
-  Check, X
+  Check, X, MessageSquare
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,21 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-// Sample data
-const SAMPLE_BOOKINGS = [
-  { id: 1, customer: "John Smith", email: "john@example.com", helicopter: "Bell 407GXi", date: "2025-05-10", time: "10:00 AM", duration: 2, location: "Grand Canyon Tour", price: 1200, status: "confirmed" },
-  { id: 2, customer: "Sarah Johnson", email: "sarah@example.com", helicopter: "Airbus H130", date: "2025-05-15", time: "2:30 PM", duration: 1.5, location: "City Skyline Tour", price: 850, status: "pending" },
-  { id: 3, customer: "Michael Brown", email: "michael@example.com", helicopter: "Robinson R66", date: "2025-04-02", time: "11:00 AM", duration: 1, location: "Coastal Tour", price: 600, status: "completed" },
-  { id: 4, customer: "Emma Wilson", email: "emma@example.com", helicopter: "Bell 407GXi", date: "2025-05-20", time: "9:00 AM", duration: 3, location: "Mountain Explorer", price: 1600, status: "pending" },
-  { id: 5, customer: "David Lee", email: "david@example.com", helicopter: "Airbus H130", date: "2025-05-01", time: "4:00 PM", duration: 2, location: "Sunset City Tour", price: 1100, status: "confirmed" },
-];
-
-const SAMPLE_ADMINS = [
-  { id: 1, name: "Admin User", email: "admin@dejair.com", role: "Super Admin", status: "active" },
-  { id: 2, name: "Jane Smith", email: "jane@dejair.com", role: "Admin", status: "active" },
-  { id: 3, name: "Mark Johnson", email: "mark@dejair.com", role: "Admin", status: "inactive" },
-];
+import authService from '../services/authService';
+import bookingService from '../services/bookingService';
+import chatService from '../services/chatService';
 
 const AdminDashboard = () => {
   const [bookings, setBookings] = useState([]);
@@ -40,7 +29,9 @@ const AdminDashboard = () => {
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', role: 'Admin' });
   const [isEditingPrice, setIsEditingPrice] = useState(null);
   const [newPrice, setNewPrice] = useState('');
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Track today's stats
   const [todayStats, setTodayStats] = useState({
@@ -49,42 +40,90 @@ const AdminDashboard = () => {
     pendingBookings: 0
   });
 
+  // Fetch all bookings data
+  const fetchBookings = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch different types of bookings
+      const negotiatedBookings = await bookingService.getAdminNegotiatedBookings();
+      const incompleteBookings = await bookingService.getAdminIncompleteBookings();
+      const completedBookings = await bookingService.getAdminCompletedBookings();
+      
+      // Combine all bookings
+      const allBookings = [
+        ...negotiatedBookings.map(booking => ({ ...booking, status: 'negotiation_requested' })),
+        ...incompleteBookings.map(booking => ({ ...booking, status: 'pending' })),
+        ...completedBookings.map(booking => ({ ...booking, status: 'completed' }))
+      ];
+      
+      setBookings(allBookings);
+      setFilteredBookings(allBookings);
+      
+      // Calculate today's stats
+      const today = new Date().toISOString().split('T')[0];
+      const todayBookings = allBookings.filter(booking => booking.date === today);
+      
+      setTodayStats({
+        bookings: todayBookings.length,
+        revenue: completedBookings.reduce((sum, booking) => sum + booking.final_amount, 0),
+        pendingBookings: incompleteBookings.length + negotiatedBookings.length
+      });
+      
+    } catch (error) {
+      toast({
+        title: "Error fetching bookings",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch unread message count
+  const fetchUnreadMessages = async () => {
+    try {
+      const count = await chatService.getUnreadMessageCount();
+      setUnreadMessages(count);
+    } catch (error) {
+      console.error("Error fetching unread messages:", error);
+    }
+  };
+
   useEffect(() => {
     // Check if admin is logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    const userRole = localStorage.getItem('userRole');
-    
-    if (!isLoggedIn || userRole !== 'admin') {
+    if (!authService.isAdmin()) {
       // Redirect to login if not logged in as admin
-      window.location.href = '/login';
+      toast({
+        title: "Authentication required",
+        description: "Please log in as an admin to access this page",
+        variant: "destructive",
+      });
+      navigate('/login');
       return;
     }
     
-    // Simulate fetching data from an API
-    setTimeout(() => {
-      setBookings(SAMPLE_BOOKINGS);
-      setFilteredBookings(SAMPLE_BOOKINGS);
-      setAdmins(SAMPLE_ADMINS);
-      
-      // Calculate today's stats (for demo purposes)
-      setTodayStats({
-        bookings: 3,
-        revenue: 2650,
-        pendingBookings: 2
-      });
-      
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    // Fetch data
+    fetchBookings();
+    fetchUnreadMessages();
+    
+    // Set up polling for unread messages
+    const messageInterval = setInterval(fetchUnreadMessages, 30000); // Check every 30 seconds
+    
+    return () => {
+      clearInterval(messageInterval);
+    };
+  }, [navigate, toast]);
 
   useEffect(() => {
     // Filter bookings based on search query and status filter
     const filtered = bookings.filter(booking => {
       const matchesSearch = 
-        booking.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        booking.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        booking.helicopter.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        booking.location.toLowerCase().includes(searchQuery.toLowerCase());
+        (booking.client?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (booking.client?.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (booking.helicopter?.model || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (booking.location || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
       
@@ -105,83 +144,80 @@ const AdminDashboard = () => {
       return;
     }
     
-    // Check if email already exists
-    if (admins.some(admin => admin.email === newAdmin.email)) {
-      toast({
-        title: "Error",
-        description: "Admin with this email already exists",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Add new admin
-    const newAdminWithId = {
-      id: admins.length + 1,
-      ...newAdmin,
-      status: 'active'
-    };
-    
-    setAdmins([...admins, newAdminWithId]);
-    setNewAdmin({ name: '', email: '', role: 'Admin' });
-    
+    // Here we would add API call to create admin
     toast({
-      title: "Admin added",
-      description: "New admin has been successfully added"
+      title: "Feature coming soon",
+      description: "Admin management will be implemented in the next update",
     });
+    
+    setNewAdmin({ name: '', email: '', role: 'Admin' });
   };
 
   const handleRemoveAdmin = (id) => {
-    // Don't allow removing the super admin
-    if (id === 1) {
-      toast({
-        title: "Cannot remove Super Admin",
-        description: "The Super Admin account cannot be removed",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setAdmins(admins.filter(admin => admin.id !== id));
-    
+    // Here we would add API call to remove admin
     toast({
-      title: "Admin removed",
-      description: "Admin has been successfully removed"
+      title: "Feature coming soon",
+      description: "Admin management will be implemented in the next update",
     });
   };
 
   const handleToggleAdminStatus = (id) => {
-    // Don't allow deactivating the super admin
-    if (id === 1) {
-      toast({
-        title: "Cannot deactivate Super Admin",
-        description: "The Super Admin account cannot be deactivated",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setAdmins(admins.map(admin => 
-      admin.id === id 
-        ? {...admin, status: admin.status === 'active' ? 'inactive' : 'active'} 
-        : admin
-    ));
-    
+    // Here we would add API call to toggle admin status
     toast({
-      title: "Status changed",
-      description: "Admin status has been updated"
+      title: "Feature coming soon",
+      description: "Admin management will be implemented in the next update",
     });
   };
 
-  const handleUpdateBookingStatus = (id, newStatus) => {
-    setBookings(bookings.map(booking => 
-      booking.id === id ? {...booking, status: newStatus} : booking
-    ));
-    
-    toast({
-      title: "Booking updated",
-      description: `Booking status changed to ${newStatus}`
-    });
+  const handleUpdateBookingStatus = async (id, newStatus) => {
+    try {
+      // Call API to update booking status
+      await bookingService.updateBooking(id, { status: newStatus });
+      
+      // Update local state
+      setBookings(bookings.map(booking => 
+        booking.id === id ? {...booking, status: newStatus} : booking
+      ));
+      
+      toast({
+        title: "Booking updated",
+        description: `Booking status changed to ${newStatus}`
+      });
+      
+    } catch (error) {
+      toast({
+        title: "Error updating booking",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleNegotiationAction = async (id, action, amount) => {
+    try {
+      const negotiationData = {
+        action: action,
+        finalAmount: amount,
+        notes: `Admin ${action}ed the negotiation request`
+      };
+      
+      await bookingService.handleNegotiation(id, negotiationData);
+      
+      toast({
+        title: "Negotiation handled",
+        description: `Negotiation ${action}ed successfully`
+      });
+      
+      // Refresh bookings
+      fetchBookings();
+      
+    } catch (error) {
+      toast({
+        title: "Error handling negotiation",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleStartPriceEdit = (id, currentPrice) => {
@@ -189,7 +225,7 @@ const AdminDashboard = () => {
     setNewPrice(currentPrice.toString());
   };
 
-  const handleSavePrice = (id) => {
+  const handleSavePrice = async (id) => {
     if (!newPrice || isNaN(Number(newPrice)) || Number(newPrice) <= 0) {
       toast({
         title: "Invalid price",
@@ -199,17 +235,37 @@ const AdminDashboard = () => {
       return;
     }
     
-    setBookings(bookings.map(booking => 
-      booking.id === id ? {...booking, price: Number(newPrice)} : booking
-    ));
-    
-    setIsEditingPrice(null);
-    setNewPrice('');
-    
-    toast({
-      title: "Price updated",
-      description: "Booking price has been updated"
-    });
+    try {
+      // Call API to update booking price
+      await bookingService.updateBooking(id, { 
+        final_amount: Number(newPrice) 
+      });
+      
+      // Update local state
+      setBookings(bookings.map(booking => 
+        booking.id === id ? {...booking, final_amount: Number(newPrice)} : booking
+      ));
+      
+      setIsEditingPrice(null);
+      setNewPrice('');
+      
+      toast({
+        title: "Price updated",
+        description: "Booking price has been updated"
+      });
+      
+    } catch (error) {
+      toast({
+        title: "Error updating price",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    navigate('/login');
   };
 
   return (
@@ -229,15 +285,23 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <Bell className="h-5 w-5 text-gray-500 cursor-pointer hover:text-dejair-600" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">3</span>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
               </div>
               
               <div className="flex items-center">
                 <div className="h-8 w-8 rounded-full bg-dejair-600 text-white flex items-center justify-center">
                   A
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-700">Admin</span>
-                <ChevronDown className="ml-1 h-4 w-4 text-gray-500" />
+                <span className="ml-2 text-sm font-medium text-gray-700">
+                  {authService.getCurrentUser()?.name || 'Admin'}
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                </Button>
               </div>
             </div>
           </div>
@@ -256,18 +320,18 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{todayStats.bookings}</div>
-              <p className="text-xs text-gray-500">+5% from yesterday</p>
+              <p className="text-xs text-gray-500">New bookings today</p>
             </CardContent>
           </Card>
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Today's Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Total Revenue</CardTitle>
               <DollarSign className="h-4 w-4 text-dejair-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">${todayStats.revenue.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">+12% from yesterday</p>
+              <p className="text-xs text-gray-500">From completed bookings</p>
             </CardContent>
           </Card>
           
@@ -314,7 +378,8 @@ const AdminDashboard = () => {
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="negotiation_requested">Negotiation</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
@@ -348,18 +413,18 @@ const AdminDashboard = () => {
                       {filteredBookings.map((booking) => (
                         <tr key={booking.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-gray-900">{booking.customer}</div>
-                            <div className="text-sm text-gray-500">{booking.email}</div>
+                            <div className="font-medium text-gray-900">{booking.client?.name || 'Unknown'}</div>
+                            <div className="text-sm text-gray-500">{booking.client?.email || 'No email'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.helicopter}
+                            {booking.helicopter?.model || 'Unknown helicopter'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>{booking.date}</div>
-                            <div>{booking.time} ({booking.duration}h)</div>
+                            <div>{booking.date || 'No date'}</div>
+                            <div>{booking.time || 'No time'} ({booking.duration || 1}h)</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.location}
+                            {booking.location || 'Location not specified'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {isEditingPrice === booking.id ? (
@@ -380,8 +445,8 @@ const AdminDashboard = () => {
                               </div>
                             ) : (
                               <div className="flex items-center">
-                                <span>${booking.price.toLocaleString()}</span>
-                                <button onClick={() => handleStartPriceEdit(booking.id, booking.price)} className="ml-2 text-dejair-600 hover:text-dejair-800">
+                                <span>${booking.final_amount?.toLocaleString() || 0}</span>
+                                <button onClick={() => handleStartPriceEdit(booking.id, booking.final_amount)} className="ml-2 text-dejair-600 hover:text-dejair-800">
                                   <Edit className="h-4 w-4" />
                                 </button>
                               </div>
@@ -391,21 +456,55 @@ const AdminDashboard = () => {
                             <StatusBadge status={booking.status} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Select 
-                              value={booking.status} 
-                              onValueChange={(value) => handleUpdateBookingStatus(booking.id, value)}
-                              disabled={booking.status === 'completed' || booking.status === 'cancelled'}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue placeholder="Change status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="confirmed">Confirm</SelectItem>
-                                <SelectItem value="completed">Complete</SelectItem>
-                                <SelectItem value="cancelled">Cancel</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex justify-end space-x-2">
+                              {booking.status === 'negotiation_requested' && (
+                                <>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="text-green-500 border-green-200 hover:bg-green-50"
+                                    onClick={() => handleNegotiationAction(booking.id, 'accept', booking.final_amount)}
+                                  >
+                                    Accept
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="text-red-500 border-red-200 hover:bg-red-50"
+                                    onClick={() => handleNegotiationAction(booking.id, 'reject', booking.original_amount)}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                              
+                              <Link to={`/booking/${booking.id}/chat`}>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="text-blue-500 border-blue-200 hover:bg-blue-50"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              
+                              {booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                                <Select 
+                                  defaultValue={booking.status}
+                                  onValueChange={(value) => handleUpdateBookingStatus(booking.id, value)}
+                                >
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue placeholder="Change status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="confirmed">Confirm</SelectItem>
+                                    <SelectItem value="completed">Complete</SelectItem>
+                                    <SelectItem value="cancelled">Cancel</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -479,67 +578,10 @@ const AdminDashboard = () => {
                 </Dialog>
               </div>
               
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <p>Loading admin data...</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {admins.map((admin) => (
-                        <tr key={admin.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-gray-900">{admin.name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {admin.email}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {admin.role}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge className={admin.status === 'active' ? 'bg-green-500' : 'bg-gray-500'}>
-                              {admin.status === 'active' ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleToggleAdminStatus(admin.id)}
-                                disabled={admin.id === 1}
-                              >
-                                {admin.status === 'active' ? 'Deactivate' : 'Activate'}
-                              </Button>
-                              
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="text-red-500 border-red-200 hover:bg-red-50"
-                                onClick={() => handleRemoveAdmin(admin.id)}
-                                disabled={admin.id === 1}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="p-8 text-center">
+                <p className="text-gray-500 mb-4">Admin management API coming soon</p>
+                <p className="text-gray-400 text-sm">This feature is currently in development.</p>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
@@ -554,6 +596,12 @@ const StatusBadge = ({ status }) => {
       return <Badge className="bg-green-500">Confirmed</Badge>;
     case 'pending':
       return <Badge className="bg-yellow-500">Pending</Badge>;
+    case 'negotiation_requested':
+      return <Badge className="bg-blue-500">Negotiation</Badge>;
+    case 'pending_payment':
+      return <Badge className="bg-purple-500">Payment Pending</Badge>;
+    case 'paid':
+      return <Badge className="bg-green-500">Paid</Badge>;
     case 'completed':
       return <Badge className="bg-blue-500">Completed</Badge>;
     case 'cancelled':
