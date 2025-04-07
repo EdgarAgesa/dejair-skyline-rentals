@@ -30,30 +30,34 @@ const Login = () => {
       if (isAdminLogin) {
         // Try admin login
         userData = await authService.adminLogin(email, password);
+        
         toast({
           title: "Admin login successful",
           description: "Welcome back, admin!",
         });
         
-        // Check if superadmin
-        if (userData.is_superadmin) {
-          navigate('/admin-dashboard');
-        } else {
-          navigate('/admin-dashboard');
+        // Set session storage flag if "Remember me" is not checked
+        if (!rememberMe) {
+          sessionStorage.setItem('session_only', 'true');
         }
+        
+        // Navigate to admin dashboard
+        navigate('/admin-dashboard');
       } else {
         // Regular user login
         userData = await authService.login(email, password);
+        
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
+        
+        // Set session storage flag if "Remember me" is not checked
+        if (!rememberMe) {
+          sessionStorage.setItem('session_only', 'true');
+        }
+        
         navigate('/user-dashboard');
-      }
-      
-      // If "Remember me" is not checked, set a session storage flag
-      if (!rememberMe) {
-        sessionStorage.setItem('session_only', 'true');
       }
     } catch (error) {
       toast({
@@ -76,7 +80,7 @@ const Login = () => {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center">Sign in to your account</CardTitle>
               <CardDescription className="text-center">
-                Enter your email and password to access your account
+                {isAdminLogin ? "Admin login - Enter your credentials" : "Enter your email and password to access your account"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -128,7 +132,7 @@ const Login = () => {
                   </Label>
                 </div>
                 <Button type="submit" className="w-full bg-dejair-600 hover:bg-dejair-700" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign in"}
+                  {isLoading ? "Signing in..." : `Sign in ${isAdminLogin ? 'as Admin' : ''}`}
                 </Button>
               </form>
               

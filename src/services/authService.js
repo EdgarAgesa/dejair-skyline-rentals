@@ -84,11 +84,18 @@ const authService = {
         throw new Error(data.message || 'Admin login failed');
       }
       
+      // Store user info with correct admin role
       if (data.access_token) {
-        localStorage.setItem('user', JSON.stringify({
+        const userInfo = {
           token: data.access_token,
-          role: data.is_superadmin ? 'superadmin' : 'admin'
-        }));
+          role: data.is_superadmin ? 'superadmin' : 'admin',
+          adminId: data.admin_id
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userInfo));
+        
+        // Dispatch a storage event to notify other components of the login
+        window.dispatchEvent(new Event('storage'));
       }
       
       return data;
@@ -101,6 +108,8 @@ const authService = {
   // Logout user
   logout() {
     localStorage.removeItem('user');
+    // Dispatch a storage event to notify other components of the logout
+    window.dispatchEvent(new Event('storage'));
   },
   
   // Get current user data
