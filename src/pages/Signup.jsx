@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -9,77 +8,86 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import authService from '../services/authService';
 
 const Signup = () => {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [receiveUpdates, setReceiveUpdates] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: ''
+  });
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Form validation
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!acceptTerms) {
-      toast({
-        title: "Error",
-        description: "You must accept the terms and conditions to proceed.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (password.length < 8) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 8 characters long.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setIsLoading(true);
-    
-    // This is a mock signup function
-    // In a real app, you would connect to your backend/authentication service
-    setTimeout(() => {
-      // Store user data in localStorage (for demo purposes only)
-      localStorage.setItem('userRole', 'user');
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userEmail', email);
+
+    try {
+      // Validate required fields
+      if (!formData.name || !formData.email || !formData.phoneNumber || !formData.password || !formData.confirmPassword) {
+        throw new Error('Please fill in all fields');
+      }
+
+      // Validate password match
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      // Validate password length
+      if (formData.password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Validate phone number format (basic validation)
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(formData.phoneNumber)) {
+        throw new Error('Please enter a valid phone number');
+      }
+
+      // Register user
+      const userData = {
+        name: formData.name,
+        email: formData.email,
+        phone_number: formData.phoneNumber,
+        password: formData.password,
+        confirmation_password: formData.confirmPassword
+      };
+
+      await authService.register(userData);
       
       toast({
-        title: "Account created",
-        description: "Welcome to Dejair Skyline!",
+        title: "Success",
+        description: "Account created successfully. Please log in.",
       });
-      
-      navigate('/user-dashboard');
+
+      navigate('/login');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create account",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -97,89 +105,65 @@ const Signup = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="John Doe"
+                  />
                 </div>
-                
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                     required
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="john@example.com"
                   />
                 </div>
-                
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Phone Number</Label>
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    required
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="+1234567890"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
+                    name="password"
                     type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                     required
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
                   />
-                  <p className="text-xs text-gray-500">
-                    Must be at least 8 characters long
-                  </p>
                 </div>
-                
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
+                    name="confirmPassword"
                     type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="••••••••"
                   />
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="acceptTerms" 
-                      checked={acceptTerms}
-                      onCheckedChange={setAcceptTerms}
-                      required
-                    />
-                    <Label htmlFor="acceptTerms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      I accept the <Link to="#" className="text-dejair-600 hover:underline">Terms of Service</Link> and <Link to="#" className="text-dejair-600 hover:underline">Privacy Policy</Link>
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="receiveUpdates" 
-                      checked={receiveUpdates}
-                      onCheckedChange={setReceiveUpdates}
-                    />
-                    <Label htmlFor="receiveUpdates" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      I want to receive updates about promotions and new services
-                    </Label>
-                  </div>
                 </div>
                 
                 <Button type="submit" className="w-full bg-dejair-600 hover:bg-dejair-700" disabled={isLoading}>

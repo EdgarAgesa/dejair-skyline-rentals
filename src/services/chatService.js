@@ -1,10 +1,10 @@
-
 // Chat service for DejAir helicopter booking system
 // Handles API calls to the backend chat endpoints
 
 import authService from './authService';
+import firebaseService from './firebaseService';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://heli-91dn.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL 
 
 const chatService = {
   // Get chat messages for a booking
@@ -35,6 +35,9 @@ const chatService = {
   // Send a chat message
   async sendChatMessage(bookingId, message) {
     try {
+      // Refresh FCM token before sending message to ensure it's valid
+      await firebaseService.refreshTokenIfNeeded();
+      
       const response = await fetch(`${API_URL}/booking/${bookingId}/chat`, {
         method: 'POST',
         headers: {
@@ -84,6 +87,15 @@ const chatService = {
   // Get unread message count
   async getUnreadMessageCount() {
     try {
+      // Check if user is logged in first
+      if (!authService.isLoggedIn()) {
+        console.warn("User not logged in, skipping unread message count fetch");
+        return 0;
+      }
+      
+      // Refresh FCM token before checking unread messages
+      await firebaseService.refreshTokenIfNeeded();
+      
       const response = await fetch(`${API_URL}/chat/unread`, {
         method: 'GET',
         headers: {
@@ -92,6 +104,12 @@ const chatService = {
         },
         cache: 'no-cache', // Ensure fresh data
       });
+      
+      // Handle CORS errors
+      if (response.status === 0) {
+        console.warn("CORS error or network issue when fetching unread count");
+        return 0;
+      }
       
       const data = await response.json();
       
@@ -102,7 +120,8 @@ const chatService = {
       return data.count;
     } catch (error) {
       console.error('Error fetching unread count:', error);
-      throw error;
+      // Return 0 instead of throwing to avoid breaking the UI
+      return 0;
     }
   }
 };

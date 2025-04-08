@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarRange, Clock, Users, MapPin, Compass, Info, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { CalendarRange, Clock, Users, MapPin, Compass, Info, ChevronDown, ChevronUp, Check, Plane } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,82 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-
-// Sample helicopter data
-const helicopters = [
-  {
-    id: 1,
-    name: "Bell 407GXi",
-    image: "https://images.unsplash.com/photo-1608236467814-a74be259b612?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2671&q=80",
-    shortDescription: "Luxury executive helicopter with premium comfort",
-    description: "The Bell 407GXi is the latest upgrade to the best-selling Bell 407 series, featuring the Garmin G1000H NXi Flight Deck and new Rolls-Royce M250-C47E/4 engine with dual channel FADEC.",
-    capacity: 6,
-    speed: "140 knots",
-    range: "330 nautical miles",
-    hourlyRate: 1500,
-    features: ["Leather interior", "Air conditioning", "Noise cancellation", "Panoramic windows", "Entertainment system"],
-    tours: [
-      { id: 101, name: "Grand Canyon Explorer", duration: 3, price: 3500 },
-      { id: 102, name: "City Skyline Tour", duration: 1, price: 1800 },
-      { id: 103, name: "Mountain Adventure", duration: 2, price: 2600 }
-    ],
-    availability: "High"
-  },
-  {
-    id: 2,
-    name: "Airbus H130",
-    image: "https://images.unsplash.com/photo-1540962351504-03099e0a754b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2674&q=80",
-    shortDescription: "Spacious and quiet helicopter for sightseeing",
-    description: "The Airbus H130 (formerly EC130) is a light single-engine helicopter including all the latest technology and a roomy, modular cabin that can accommodate up to 7 passengers.",
-    capacity: 7,
-    speed: "150 knots",
-    range: "350 nautical miles",
-    hourlyRate: 1800,
-    features: ["Spacious cabin", "Low noise levels", "Excellent visibility", "Advanced avionics", "Energy-absorbing seats"],
-    tours: [
-      { id: 201, name: "Coastal Paradise Tour", duration: 2, price: 2800 },
-      { id: 202, name: "Sunset Experience", duration: 1.5, price: 2200 },
-      { id: 203, name: "Island Hopping Adventure", duration: 4, price: 4500 }
-    ],
-    availability: "Medium"
-  },
-  {
-    id: 3,
-    name: "Robinson R66",
-    image: "https://images.unsplash.com/photo-1588331346622-b88447fbf2b5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2671&q=80",
-    shortDescription: "Reliable and efficient turbine helicopter",
-    description: "The Robinson R66 Turbine helicopter is a 5-seat turbine helicopter powered by the Rolls Royce RR300 turboshaft engine. It offers improved altitude performance and increased capacity.",
-    capacity: 5,
-    speed: "120 knots",
-    range: "300 nautical miles",
-    hourlyRate: 1200,
-    features: ["Turbine reliability", "Large baggage compartment", "Cruise control", "Hydraulic controls", "Low operating costs"],
-    tours: [
-      { id: 301, name: "City Landmarks Tour", duration: 1, price: 1400 },
-      { id: 302, name: "Countryside Experience", duration: 2, price: 2200 },
-      { id: 303, name: "Photography Special", duration: 1.5, price: 1800 }
-    ],
-    availability: "High"
-  },
-  {
-    id: 4,
-    name: "Sikorsky S-76D",
-    image: "https://images.unsplash.com/photo-1555658056-84031809d7bb?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2670&q=80",
-    shortDescription: "VIP executive transport with superior comfort",
-    description: "The Sikorsky S-76D helicopter delivers the safety, reliability and efficiency that operators have come to expect from the S-76 family of aircraft, while providing enhanced capabilities.",
-    capacity: 12,
-    speed: "155 knots",
-    range: "400 nautical miles",
-    hourlyRate: 2500,
-    features: ["VIP configuration", "Quiet cabin technology", "Enhanced avionics", "Powerful engines", "Long range capabilities"],
-    tours: [
-      { id: 401, name: "Executive City Tour", duration: 1, price: 2800 },
-      { id: 402, name: "Luxury Wine Country Experience", duration: 4, price: 6500 },
-      { id: 403, name: "VIP Airport Transfer", duration: 0.5, price: 1500 }
-    ],
-    availability: "Low"
-  }
-];
+import bookingService from '../services/bookingService';
+import helicopterService from '../services/helicopterService';
+import authService from '../services/authService';
+import PaymentDialog from '../components/PaymentDialog';
+import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 const Helicopters = () => {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -97,13 +28,49 @@ const Helicopters = () => {
   const [selectedHelicopter, setSelectedHelicopter] = useState(null);
   const [selectedTour, setSelectedTour] = useState(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
-  const [filteredHelicopters, setFilteredHelicopters] = useState(helicopters);
+  const [helicopters, setHelicopters] = useState([]);
+  const [filteredHelicopters, setFilteredHelicopters] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
     capacity: [],
     maxPrice: 5000,
     availability: []
   });
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [currentBooking, setCurrentBooking] = useState(null);
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingDetails, setBookingDetails] = useState({
+    date: '',
+    time: '',
+    purpose: '',
+    num_passengers: 1,
+    amount: 0
+  });
+
+  // Fetch helicopters from the backend
+  useEffect(() => {
+    const fetchHelicopters = async () => {
+      try {
+        setIsLoading(true);
+        const data = await helicopterService.getAllHelicopters();
+        setHelicopters(data);
+        setFilteredHelicopters(data);
+      } catch (error) {
+        console.error('Error fetching helicopters:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load helicopters. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHelicopters();
+  }, [toast]);
 
   // Update filtered helicopters when filters change
   useEffect(() => {
@@ -133,7 +100,7 @@ const Helicopters = () => {
     }
     
     setFilteredHelicopters(filtered);
-  }, [filters]);
+  }, [filters, helicopters]);
 
   const toggleCapacityFilter = (value) => {
     setFilters(prev => {
@@ -155,24 +122,107 @@ const Helicopters = () => {
     });
   };
 
-  const handleBooking = (helicopter, tour = null) => {
-    // In a real app, this would navigate to a booking confirmation page
-    // or open a booking dialog
-    
-    if (!localStorage.getItem('isLoggedIn')) {
+  const handleBooking = (helicopter) => {
+    // Check if user is logged in
+    if (!authService.isLoggedIn()) {
       toast({
         title: "Login required",
         description: "Please log in to book a helicopter.",
       });
+      navigate('/login');
       return;
     }
     
     setSelectedHelicopter(helicopter);
-    setSelectedTour(tour);
+    setBookingDetails({
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: '12:00:00',
+      purpose: '',
+      num_passengers: 1,
+      amount: helicopter.hourlyRate || 1000
+    });
+    setShowBookingForm(true);
+  };
+
+  const handleBookingSubmit = async () => {
+    try {
+      // Validate booking details
+      if (!bookingDetails.purpose) {
+        toast({
+          title: "Purpose required",
+          description: "Please enter the purpose of your booking.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Prepare booking data with required fields
+      const bookingData = {
+        helicopter_id: selectedHelicopter.id,
+        date: bookingDetails.date,
+        time: bookingDetails.time,
+        purpose: bookingDetails.purpose,
+        num_passengers: bookingDetails.num_passengers,
+        amount: bookingDetails.amount
+      };
+      
+      // Create booking using the booking service
+      const response = await bookingService.createBooking(bookingData);
+      
+      // Show success message with booking details
+      toast({
+        title: "Booking created successfully",
+        description: "Please proceed to payment to confirm your booking.",
+      });
+      
+      // Store the booking for payment
+      setCurrentBooking(response.booking);
+      
+      // Close booking form and show payment dialog
+      setShowBookingForm(false);
+      setShowPaymentDialog(true);
+      
+    } catch (error) {
+      toast({
+        title: "Booking failed",
+        description: error.message || "Failed to create booking. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBookingCancel = () => {
+    setShowBookingForm(false);
+    setSelectedHelicopter(null);
+    setBookingDetails({
+      date: '',
+      time: '',
+      purpose: '',
+      num_passengers: 1,
+      amount: 0
+    });
+  };
+
+  const handlePaymentSuccess = (data) => {
+    setShowPaymentDialog(false);
+    setCurrentBooking(null);
     
     toast({
-      title: "Booking initiated",
-      description: `You've selected the ${helicopter.name}${tour ? ` for the ${tour.name}` : ''}. Please complete your booking.`,
+      title: "Payment successful",
+      description: "Your booking has been confirmed. You can view your booking details in your dashboard.",
+    });
+    
+    // Navigate to user dashboard to view booking
+    navigate('/user-dashboard');
+  };
+
+  const handlePaymentCancel = () => {
+    setShowPaymentDialog(false);
+    setCurrentBooking(null);
+    
+    toast({
+      title: "Payment cancelled",
+      description: "Your booking is pending payment. You can complete the payment later from your dashboard.",
     });
   };
 
@@ -248,22 +298,35 @@ const Helicopters = () => {
                     </div>
                   </div>
                   
-                  {/* Price Range */}
+                  {/* Hourly Rate */}
                   <div>
-                    <h3 className="font-medium mb-2">Max Hourly Rate</h3>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">$0</span>
-                      <span className="text-sm">${filters.maxPrice}</span>
+                    <h3 className="font-medium mb-2">Maximum Hourly Rate</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="price-1000" 
+                          checked={filters.maxPrice === 1000}
+                          onCheckedChange={() => setFilters(prev => ({ ...prev, maxPrice: 1000 }))}
+                        />
+                        <label htmlFor="price-1000" className="text-sm">$1,000 or less</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="price-2000" 
+                          checked={filters.maxPrice === 2000}
+                          onCheckedChange={() => setFilters(prev => ({ ...prev, maxPrice: 2000 }))}
+                        />
+                        <label htmlFor="price-2000" className="text-sm">$2,000 or less</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="price-5000" 
+                          checked={filters.maxPrice === 5000}
+                          onCheckedChange={() => setFilters(prev => ({ ...prev, maxPrice: 5000 }))}
+                        />
+                        <label htmlFor="price-5000" className="text-sm">$5,000 or less</label>
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min="500"
-                      max="5000"
-                      step="100"
-                      value={filters.maxPrice}
-                      onChange={(e) => setFilters({...filters, maxPrice: parseInt(e.target.value)})}
-                      className="w-full"
-                    />
                   </div>
                   
                   {/* Availability */}
@@ -314,7 +377,11 @@ const Helicopters = () => {
                 
                 {/* Helicopters Tab */}
                 <TabsContent value="helicopters">
-                  {filteredHelicopters.length === 0 ? (
+                  {isLoading ? (
+                    <div className="text-center py-10 bg-white rounded-lg shadow-sm">
+                      <p className="text-gray-500 mb-4">Loading helicopters...</p>
+                    </div>
+                  ) : filteredHelicopters.length === 0 ? (
                     <div className="text-center py-10 bg-white rounded-lg shadow-sm">
                       <p className="text-gray-500 mb-4">No helicopters match your current filters</p>
                       <Button variant="outline" onClick={resetFilters}>
@@ -336,6 +403,11 @@ const Helicopters = () => {
                 
                 {/* Tours Tab */}
                 <TabsContent value="tours">
+                  {isLoading ? (
+                    <div className="text-center py-10 bg-white rounded-lg shadow-sm">
+                      <p className="text-gray-500 mb-4">Loading tours...</p>
+                    </div>
+                  ) : (
                   <div className="space-y-6">
                     {filteredHelicopters.flatMap(helicopter => 
                       helicopter.tours.map(tour => (
@@ -348,6 +420,7 @@ const Helicopters = () => {
                       ))
                     )}
                   </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
@@ -355,157 +428,94 @@ const Helicopters = () => {
         </div>
       </div>
       
-      {/* Booking Section */}
-      {selectedHelicopter && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Complete Your Booking</h2>
-                <button 
-                  onClick={() => {
-                    setSelectedHelicopter(null);
-                    setSelectedTour(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
+      {/* Booking Form Dialog */}
+      {showBookingForm && selectedHelicopter && (
+        <Dialog open={showBookingForm} onOpenChange={handleBookingCancel}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Book {selectedHelicopter.name}</DialogTitle>
+              <DialogDescription>
+                Please enter your booking details below.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={bookingDetails.date}
+                  onChange={(e) => setBookingDetails(prev => ({ ...prev, date: e.target.value }))}
+                  min={format(new Date(), 'yyyy-MM-dd')}
+                />
               </div>
               
-              <div className="mb-6">
-                <h3 className="font-medium mb-2">Selected Helicopter</h3>
-                <div className="flex items-center space-x-3">
-                  <img 
-                    src={selectedHelicopter.image} 
-                    alt={selectedHelicopter.name} 
-                    className="w-16 h-16 object-cover rounded-md"
-                  />
-                  <div>
-                    <p className="font-medium">{selectedHelicopter.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {selectedTour ? selectedTour.name : 'Custom Booking'}
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="time">Time</Label>
+                <Input
+                  id="time"
+                  type="time"
+                  value={bookingDetails.time.split(':').slice(0, 2).join(':')}
+                  onChange={(e) => setBookingDetails(prev => ({ ...prev, time: `${e.target.value}:00` }))}
+                />
               </div>
               
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Select Date</label>
-                  <Select onValueChange={setSelectedDate}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2025-05-10">May 10, 2025</SelectItem>
-                      <SelectItem value="2025-05-11">May 11, 2025</SelectItem>
-                      <SelectItem value="2025-05-12">May 12, 2025</SelectItem>
-                      <SelectItem value="2025-05-13">May 13, 2025</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Select Time</label>
-                  <Select onValueChange={setSelectedTime}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="9:00 AM">9:00 AM</SelectItem>
-                      <SelectItem value="11:00 AM">11:00 AM</SelectItem>
-                      <SelectItem value="1:00 PM">1:00 PM</SelectItem>
-                      <SelectItem value="3:00 PM">3:00 PM</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {!selectedTour && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Duration (hours)</label>
-                    <Select onValueChange={setSelectedDuration}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 hour</SelectItem>
-                        <SelectItem value="2">2 hours</SelectItem>
-                        <SelectItem value="3">3 hours</SelectItem>
-                        <SelectItem value="4">4 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Number of Passengers</label>
-                  <Select onValueChange={setSelectedPassengers}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select passengers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...Array(selectedHelicopter.capacity)].map((_, i) => (
-                        <SelectItem key={i} value={String(i+1)}>{i+1} {i === 0 ? 'passenger' : 'passengers'}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="purpose">Purpose</Label>
+                <Input
+                  id="purpose"
+                  placeholder="Enter the purpose of your booking"
+                  value={bookingDetails.purpose}
+                  onChange={(e) => setBookingDetails(prev => ({ ...prev, purpose: e.target.value }))}
+                />
               </div>
               
-              <div className="border-t pt-4 mb-6">
-                <div className="flex justify-between mb-2">
-                  <span>Base Price</span>
-                  <span>${selectedTour ? selectedTour.price : selectedHelicopter.hourlyRate}/flight</span>
-                </div>
-                {!selectedTour && selectedDuration && (
-                  <div className="flex justify-between mb-2">
-                    <span>Duration Adjustment</span>
-                    <span>x{selectedDuration} hours</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t">
-                  <span>Total</span>
-                  <span>${selectedTour 
-                    ? selectedTour.price 
-                    : selectedDuration 
-                      ? selectedHelicopter.hourlyRate * parseInt(selectedDuration)
-                      : selectedHelicopter.hourlyRate
-                  }</span>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="passengers">Number of Passengers</Label>
+                <Input
+                  id="passengers"
+                  type="number"
+                  min="1"
+                  max={selectedHelicopter.capacity}
+                  value={bookingDetails.num_passengers}
+                  onChange={(e) => setBookingDetails(prev => ({ ...prev, num_passengers: parseInt(e.target.value) }))}
+                />
               </div>
               
-              <div className="flex justify-between items-center">
-                <Link to="/contact-admin" className="text-dejair-600 text-sm hover:underline">
-                  Request custom pricing
-                </Link>
-                <Button 
-                  className="bg-dejair-600 hover:bg-dejair-700"
-                  onClick={() => {
-                    if (!selectedDate || !selectedTime || (!selectedTour && !selectedDuration) || !selectedPassengers) {
-                      toast({
-                        title: "Missing information",
-                        description: "Please fill in all required fields",
-                        variant: "destructive"
-                      });
-                      return;
-                    }
-                    
-                    toast({
-                      title: "Booking Confirmed!",
-                      description: "Your helicopter has been booked successfully."
-                    });
-                    
-                    setSelectedHelicopter(null);
-                    setSelectedTour(null);
-                  }}
-                >
-                  Confirm Booking
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  min="1"
+                  value={bookingDetails.amount}
+                  onChange={(e) => setBookingDetails(prev => ({ ...prev, amount: parseInt(e.target.value) }))}
+                />
               </div>
             </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={handleBookingCancel}>
+                Cancel
+              </Button>
+              <Button onClick={handleBookingSubmit}>
+                Create Booking
+              </Button>
           </div>
-        </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      {/* Payment Dialog */}
+      {currentBooking && (
+        <PaymentDialog
+          isOpen={showPaymentDialog}
+          onClose={handlePaymentCancel}
+          bookingId={currentBooking.id}
+          amount={currentBooking.amount}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
       
       <Footer />
@@ -521,7 +531,7 @@ const HelicopterCard = ({ helicopter, onBook }) => {
       <div className="md:flex">
         <div className="md:w-1/3 h-48 md:h-auto relative">
           <img 
-            src={helicopter.image} 
+            src={helicopter.image_url} 
             alt={helicopter.name} 
             className="w-full h-full object-cover"
           />
@@ -671,7 +681,7 @@ const TourCard = ({ helicopter, tour, onBook }) => {
                 <span className="text-sm">Up to {helicopter.capacity} passengers</span>
               </div>
               <div className="flex items-center">
-                <Helicopter className="h-4 w-4 text-dejair-600 mr-2" />
+                <Plane className="h-4 w-4 text-dejair-600 mr-2" />
                 <span className="text-sm">{helicopter.name}</span>
               </div>
             </div>

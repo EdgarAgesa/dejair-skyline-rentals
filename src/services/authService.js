@@ -1,8 +1,7 @@
-
 // Authentication service for DejAir booking system
 // Handles API calls to the backend auth endpoints
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://heli-91dn.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL
 
 const authService = {
   // Register a new client
@@ -102,6 +101,25 @@ const authService = {
         };
         
         localStorage.setItem('user', JSON.stringify(userInfo));
+        
+        // Subscribe to admin notifications topic
+        if (data.fcm_token) {
+          try {
+            await fetch(`${API_URL}/fcm-token`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${data.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                token: data.fcm_token,
+                topic: 'admin_notifications'
+              }),
+            });
+          } catch (error) {
+            console.error('Error subscribing to admin notifications:', error);
+          }
+        }
         
         // Dispatch a storage event to notify other components of the login
         window.dispatchEvent(new Event('storage'));

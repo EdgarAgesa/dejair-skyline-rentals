@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban, DollarSign } from 'lucide-react';
+import { CalendarCheck, Clock, MapPin, Plane, PenLine, Ban, DollarSign, MessageSquare } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +12,8 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import authService from '../services/authService';
 import bookingService from '../services/bookingService';
+import PaymentDialog from '@/components/PaymentDialog';
+import firebaseService from '../services/firebaseService';
 
 const UserDashboard = () => {
   const [bookings, setBookings] = useState([]);
@@ -23,10 +24,19 @@ const UserDashboard = () => {
   const [negotiationNotes, setNegotiationNotes] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showNegotiationDialog, setShowNegotiationDialog] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [isNegotiatedPayment, setIsNegotiatedPayment] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('');
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [paymentPendingMessage, setPaymentPendingMessage] = useState('');
+  const [paymentPollingInterval, setPaymentPollingInterval] = useState(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [isNegotiating, setIsNegotiating] = useState(false);
 
   const fetchBookings = async () => {
     try {
@@ -100,85 +110,188 @@ const UserDashboard = () => {
   const openPaymentDialog = (booking, isNegotiated = false) => {
     setActiveBookingId(booking.id);
     setIsNegotiatedPayment(isNegotiated);
-    setShowPaymentDialog(true);
+    setSelectedBooking(booking);
+    setIsPaymentDialogOpen(true);
   };
 
   const closePaymentDialog = () => {
-    setShowPaymentDialog(false);
+    setIsPaymentDialogOpen(false);
     setActiveBookingId(null);
     setPhoneNumber('');
     setIsNegotiatedPayment(false);
+    setSelectedBooking(null);
   };
 
-  const handleRequestNegotiation = async () => {
+  const handleNegotiationRequest = async (bookingId) => {
     try {
-      const response = await bookingService.requestNegotiation(activeBookingId, {
-        negotiatedAmount: parseFloat(negotiationAmount),
+      setIsNegotiating(true);
+      
+      // Send the negotiation request
+      const response = await bookingService.requestNegotiation(bookingId, {
+        negotiated_amount: parseFloat(negotiationAmount),
         notes: negotiationNotes
       });
       
-      toast({
-        title: "Negotiation requested",
-        description: "Your price negotiation request has been submitted successfully.",
+      // Send Firebase notification
+      await firebaseService.sendNotification({
+        booking_id: bookingId,
+        title: "New Negotiation Request",
+        body: `Booking #${bookingId} has a new negotiation request`,
+        data: {
+          type: "negotiation_request",
+          booking_id: bookingId,
+          negotiated_amount: negotiationAmount,
+          notes: negotiationNotes
+        }
       });
       
-      // Update the booking in the UI
-      setBookings(bookings.map(booking => 
-        booking.id === activeBookingId 
-          ? { 
-              ...booking, 
-              status: "negotiation_requested",
-              negotiation_status: "requested",
-              final_amount: parseFloat(negotiationAmount)
-            } 
-          : booking
-      ));
-      
-      closeNegotiationDialog();
-      fetchBookings(); // Refresh bookings
-    } catch (error) {
       toast({
-        title: "Error requesting negotiation",
-        description: error.message,
+        title: "Negotiation request submitted",
+        description: "An admin will review your request and contact you shortly.",
+      });
+      
+      setShowNegotiationDialog(false);
+      setNegotiationAmount('');
+      setNegotiationNotes('');
+      fetchBookings(); // Refresh bookings list
+    } catch (error) {
+      console.error('Negotiation error:', error);
+      toast({
+        title: "Negotiation failed",
+        description: error.message || "Failed to submit negotiation request. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsNegotiating(false);
     }
   };
 
-  const handleProcessPayment = async () => {
+  const handleProcessPayment = async (bookingId, phoneNumber) => {
+    setPaymentLoading(true);
+    setPaymentError(null);
+    setPaymentSuccess(false);
+    setPaymentPending(false);
+
     try {
-      let response;
+      console.log(`Processing payment for booking ${bookingId} with phone number ${phoneNumber}`);
+      
+      let result;
       
       if (isNegotiatedPayment) {
-        response = await bookingService.processNegotiatedPayment(activeBookingId, {
-          phoneNumber: phoneNumber
-        });
+        console.log('Processing negotiated payment');
+        result = await bookingService.processNegotiatedPayment(bookingId, { phoneNumber });
       } else {
-        response = await bookingService.processDirectPayment(activeBookingId, {
-          phoneNumber: phoneNumber
-        });
+        console.log('Processing direct payment');
+        result = await bookingService.processDirectPayment(bookingId, { phoneNumber });
       }
       
-      toast({
-        title: "Payment initiated",
-        description: "Please check your phone for the M-Pesa payment request.",
-      });
+      console.log('Payment processing result:', result);
       
-      closePaymentDialog();
-      
-      // Set a timeout to refresh bookings after a few seconds
-      setTimeout(() => {
-        fetchBookings();
-      }, 5000);
-      
+      if (result.message && result.message.includes('successful')) {
+        console.log('Payment initiated successfully');
+        setPaymentSuccess(true);
+        setPaymentSuccessMessage('Payment initiated successfully! Please check your phone for the M-Pesa prompt.');
+        startPaymentStatusPolling(bookingId);
+      } else if (result.status === 'pending') {
+        console.log('Payment is pending');
+        setPaymentPending(true);
+        setPaymentPendingMessage('Payment is pending. Please check your phone for the M-Pesa prompt.');
+        startPaymentStatusPolling(bookingId);
+      } else {
+        console.log('Payment failed:', result.message);
+        setPaymentError(result.message || 'Failed to process payment. Please try again.');
+      }
     } catch (error) {
-      toast({
-        title: "Error processing payment",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error('Error processing payment:', error);
+      setPaymentError(error.message || 'An error occurred while processing the payment.');
+    } finally {
+      setPaymentLoading(false);
     }
   };
+
+  const startPaymentStatusPolling = (bookingId) => {
+    // Clear any existing polling interval
+    if (paymentPollingInterval) {
+      clearInterval(paymentPollingInterval);
+    }
+
+    let attempts = 0;
+    const maxAttempts = 24; // 2 minutes (5 seconds * 24)
+
+    console.log(`Starting payment status polling for booking ${bookingId}`);
+
+    const interval = setInterval(async () => {
+      attempts++;
+      console.log(`Payment status polling attempt ${attempts}/${maxAttempts}`);
+      
+      try {
+        // First try to get the booking directly to check its status
+        const booking = await bookingService.getBooking(bookingId);
+        console.log(`Booking status: ${booking.status}, Payment status: ${booking.payment_status}`);
+        
+        if (booking.status === 'paid' || booking.payment_status === 'paid') {
+          console.log('Payment confirmed successfully!');
+          clearInterval(interval);
+          setPaymentSuccess(true);
+          setPaymentSuccessMessage('Payment completed successfully!');
+          setPaymentPending(false);
+          fetchBookings(); // Refresh the bookings list
+          setTimeout(() => {
+            setIsPaymentDialogOpen(false);
+            // Redirect to payment confirmation page
+            navigate(`/payment-confirmation/${bookingId}`);
+          }, 2000);
+        } else if (booking.status === 'cancelled' || booking.payment_status === 'failed') {
+          console.log('Payment failed or was cancelled');
+          clearInterval(interval);
+          setPaymentError('Payment was not completed. Please try again.');
+          setPaymentPending(false);
+        } else if (attempts >= maxAttempts) {
+          console.log('Payment status polling timed out');
+          clearInterval(interval);
+          setPaymentError('Payment status check timed out. Please check your booking status.');
+          setPaymentPending(false);
+        } else {
+          // If we can't determine the status from the booking, try the dedicated status endpoint
+          try {
+            const result = await bookingService.getBookingStatus(bookingId);
+            console.log(`Booking status from dedicated endpoint: ${result.status}`);
+            
+            if (result.status === 'paid' || (result.message && result.message.includes('paid'))) {
+              console.log('Payment confirmed successfully from dedicated endpoint!');
+              clearInterval(interval);
+              setPaymentSuccess(true);
+              setPaymentSuccessMessage('Payment completed successfully!');
+              setPaymentPending(false);
+              fetchBookings(); // Refresh the bookings list
+              setTimeout(() => {
+                setIsPaymentDialogOpen(false);
+                // Redirect to payment confirmation page
+                navigate(`/payment-confirmation/${bookingId}`);
+              }, 2000);
+            }
+          } catch (statusError) {
+            console.error('Error checking booking status from dedicated endpoint:', statusError);
+            // Continue polling even if this fails
+          }
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+        // Don't stop polling on error, just log it
+      }
+    }, 5000);
+
+    setPaymentPollingInterval(interval);
+  };
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+      }
+    };
+  }, [paymentPollingInterval]);
 
   const getStatusBadge = (status) => {
     switch(status) {
@@ -216,6 +329,17 @@ const UserDashboard = () => {
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  const handlePaymentSuccess = (bookingId) => {
+    // Close the payment dialog
+    setIsPaymentDialogOpen(false);
+    
+    // Redirect to payment confirmation page
+    navigate(`/payment-confirmation/${bookingId}`);
+    
+    // Refresh the bookings list
+    fetchBookings();
   };
 
   return (
@@ -376,46 +500,36 @@ const UserDashboard = () => {
             <Button variant="outline" onClick={closeNegotiationDialog}>
               Cancel
             </Button>
-            <Button type="submit" onClick={handleRequestNegotiation}>
-              Submit Request
+            <Button type="submit" onClick={() => handleNegotiationRequest(activeBookingId)} disabled={isNegotiating || !negotiationAmount}>
+              {isNegotiating ? 'Submitting...' : 'Submit Request'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       
       {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Process Payment</DialogTitle>
-            <DialogDescription>
-              Enter your M-Pesa phone number to receive payment prompt.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="phone" className="text-right">
-                Phone
-              </label>
-              <Input
-                id="phone"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="254712345678"
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closePaymentDialog}>
-              Cancel
-            </Button>
-            <Button type="submit" onClick={handleProcessPayment}>
-              Pay Now
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PaymentDialog
+        isOpen={isPaymentDialogOpen}
+        onClose={() => {
+          setIsPaymentDialogOpen(false);
+          setSelectedBooking(null);
+          setPaymentError(null);
+          setPaymentSuccess(false);
+          setPaymentPending(false);
+          if (paymentPollingInterval) {
+            clearInterval(paymentPollingInterval);
+            setPaymentPollingInterval(null);
+          }
+        }}
+        onProcessPayment={handleProcessPayment}
+        booking={selectedBooking}
+        isLoading={paymentLoading}
+        error={paymentError}
+        isSuccess={paymentSuccess}
+        successMessage={paymentSuccessMessage}
+        isPending={paymentPending}
+        pendingMessage={paymentPendingMessage}
+      />
       
       <Footer />
     </div>
@@ -433,52 +547,46 @@ const BookingCard = ({
   negotiationStatusBadge
 }) => {
   return (
-    <Card className="shadow-sm hover:shadow-md transition-shadow">
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
-        <div>
-          <CardTitle className="text-xl font-bold">{booking.helicopter?.model || "Helicopter"}</CardTitle>
-          <CardDescription>{booking.purpose || "Helicopter booking"}</CardDescription>
-        </div>
-        <div className="flex space-x-2">
-          {statusBadge}
-          {negotiationStatusBadge}
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-lg">Booking #{booking.id}</CardTitle>
+            <p className="text-sm text-gray-500">
+              {new Date(booking.date).toLocaleDateString()} at {booking.time}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {statusBadge}
+            {negotiationStatusBadge}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="pb-2">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <CalendarCheck className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.date}</span>
+      <CardContent>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Amount:</span>
+            <span className="font-medium">${booking.final_amount || booking.original_amount}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.time}</span>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Passengers:</span>
+            <span>{booking.num_passengers}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">{booking.location || "Location not specified"}</span>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Purpose:</span>
+            <span>{booking.purpose}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Plane className="h-4 w-4 text-dejair-600" />
-            <span className="text-sm">Passengers: {booking.num_passengers || 1}</span>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-between items-center">
-          {booking.negotiation_status !== 'none' && (
-            <div className="flex flex-col">
-              <span className="text-sm text-gray-500">Original Price:</span>
-              <span className="line-through text-gray-500">${booking.original_amount?.toLocaleString() || 0}</span>
+          {booking.notes && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">Notes:</span>
+              <span>{booking.notes}</span>
             </div>
           )}
-          <div className="flex flex-col ml-auto text-right">
-            <span className="text-sm text-gray-500">Final Price:</span>
-            <span className="font-bold text-dejair-800">${booking.final_amount?.toLocaleString() || booking.original_amount?.toLocaleString() || 0}</span>
-          </div>
         </div>
       </CardContent>
       {!isPaid && (
         <CardFooter className="flex justify-end space-x-2 pt-2">
-          {onNegotiate && (
+          {onNegotiate && booking.negotiation_status === 'none' && (
             <Button variant="outline" size="sm" onClick={onNegotiate}>
               <PenLine className="mr-1 h-4 w-4" />
               Negotiate
@@ -501,6 +609,18 @@ const BookingCard = ({
               <Ban className="mr-1 h-4 w-4" />
               Cancel
             </Button>
+          )}
+          {(booking.negotiation_status === 'requested' || booking.negotiation_status === 'accepted') && (
+            <Link to={`/booking/${booking.id}/chat`}>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-blue-500 border-blue-200 hover:bg-blue-50"
+              >
+                <MessageSquare className="mr-1 h-4 w-4" />
+                Chat with Admin
+              </Button>
+            </Link>
           )}
         </CardFooter>
       )}

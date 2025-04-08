@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Users, ChevronDown, Bell, Search, Plane, 
   Calendar, DollarSign, UserPlus, Edit, Trash2,
-  Check, X, MessageSquare
+  Check, X, MessageSquare, Handshake, Plus
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,11 @@ import { useToast } from "@/hooks/use-toast";
 import authService from '../services/authService';
 import bookingService from '../services/bookingService';
 import chatService from '../services/chatService';
+import helicopterService from '../services/helicopterService';
+import firebaseService from '../services/firebaseService';
+import { ToastAction } from "@/components/ui/toast";
+import { FileUploaderRegular } from '@uploadcare/react-uploader';
+import '@uploadcare/react-uploader/core.css';
 
 const AdminDashboard = () => {
   const [bookings, setBookings] = useState([]);
@@ -40,22 +44,32 @@ const AdminDashboard = () => {
     pendingBookings: 0
   });
 
+  const [negotiationDialogOpen, setNegotiationDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [negotiationAmount, setNegotiationAmount] = useState('');
+  const [negotiationNotes, setNegotiationNotes] = useState('');
+  const [negotiationHistory, setNegotiationHistory] = useState([]);
+  const [negotiationAction, setNegotiationAction] = useState('accept'); // 'accept' or 'reject'
+  const [finalAmount, setFinalAmount] = useState('');
+
+  const [helicopters, setHelicopters] = useState([]);
+  const [isLoadingHelicopters, setIsLoadingHelicopters] = useState(false);
+  const [newHelicopter, setNewHelicopter] = useState({
+    model: '',
+    capacity: '',
+    image_url: ''
+  });
+  const [isAddHelicopterDialogOpen, setIsAddHelicopterDialogOpen] = useState(false);
+
+  const [pendingNegotiations, setPendingNegotiations] = useState([]);
+
   // Fetch all bookings data
   const fetchBookings = async () => {
     try {
       setIsLoading(true);
       
-      // Fetch different types of bookings
-      const negotiatedBookings = await bookingService.getAdminNegotiatedBookings();
-      const incompleteBookings = await bookingService.getAdminIncompleteBookings();
-      const completedBookings = await bookingService.getAdminCompletedBookings();
-      
-      // Combine all bookings
-      const allBookings = [
-        ...negotiatedBookings.map(booking => ({ ...booking, status: 'negotiation_requested' })),
-        ...incompleteBookings.map(booking => ({ ...booking, status: 'pending' })),
-        ...completedBookings.map(booking => ({ ...booking, status: 'completed' }))
-      ];
+      // Fetch all bookings
+      const allBookings = await bookingService.getClientBookings();
       
       setBookings(allBookings);
       setFilteredBookings(allBookings);
@@ -66,8 +80,12 @@ const AdminDashboard = () => {
       
       setTodayStats({
         bookings: todayBookings.length,
-        revenue: completedBookings.reduce((sum, booking) => sum + booking.final_amount, 0),
-        pendingBookings: incompleteBookings.length + negotiatedBookings.length
+        revenue: allBookings
+          .filter(booking => booking.status === 'completed' || booking.status === 'paid')
+          .reduce((sum, booking) => sum + booking.final_amount, 0),
+        pendingBookings: allBookings
+          .filter(booking => booking.status === 'pending' || booking.status === 'negotiation_requested')
+          .length
       });
       
     } catch (error) {
@@ -84,10 +102,25 @@ const AdminDashboard = () => {
   // Fetch unread message count
   const fetchUnreadMessages = async () => {
     try {
+      // Check if user is logged in first
+      if (!authService.isLoggedIn()) {
+        console.warn("User not logged in, skipping unread message fetch");
+        return;
+      }
+      
       const count = await chatService.getUnreadMessageCount();
       setUnreadMessages(count);
     } catch (error) {
       console.error("Error fetching unread messages:", error);
+      // Don't show toast for every error to avoid spamming the user
+      // Only show toast for the first error
+      if (unreadMessages === 0) {
+        toast({
+          title: "Connection Error",
+          description: "Could not connect to the chat server. Please check your connection.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -193,28 +226,50 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleNegotiationAction = async (id, action, amount) => {
+  const handleNegotiationRequest = async (booking) => {
+    setSelectedBooking(booking);
+    setNegotiationDialogOpen(true);
+    setFinalAmount(booking.negotiated_amount || booking.original_amount);
     try {
-      const negotiationData = {
-        action: action,
-        finalAmount: amount,
-        notes: `Admin ${action}ed the negotiation request`
-      };
-      
-      await bookingService.handleNegotiation(id, negotiationData);
-      
-      toast({
-        title: "Negotiation handled",
-        description: `Negotiation ${action}ed successfully`
-      });
-      
-      // Refresh bookings
-      fetchBookings();
-      
+      const history = await bookingService.getNegotiationHistory(booking.id);
+      setNegotiationHistory(history);
     } catch (error) {
       toast({
-        title: "Error handling negotiation",
-        description: error.message,
+        title: "Error",
+        description: "Failed to fetch negotiation history",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleNegotiationSubmit = async () => {
+    try {
+      if (!finalAmount && negotiationAction === 'accept') {
+        toast({
+          title: "Error",
+          description: "Please enter a final amount",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await bookingService.handleNegotiation(selectedBooking.id, {
+        action: negotiationAction,
+        finalAmount: parseFloat(finalAmount),
+        notes: negotiationNotes
+      });
+
+      toast({
+        title: "Success",
+        description: `Negotiation ${negotiationAction}ed successfully`
+      });
+
+      setNegotiationDialogOpen(false);
+      fetchBookings(); // Refresh bookings list
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process negotiation",
         variant: "destructive"
       });
     }
@@ -237,8 +292,10 @@ const AdminDashboard = () => {
     
     try {
       // Call API to update booking price
-      await bookingService.updateBooking(id, { 
-        final_amount: Number(newPrice) 
+      const response = await bookingService.handleNegotiation(id, {
+        action: 'accept',
+        finalAmount: Number(newPrice),
+        notes: 'Price updated by admin'
       });
       
       // Update local state
@@ -249,9 +306,21 @@ const AdminDashboard = () => {
       setIsEditingPrice(null);
       setNewPrice('');
       
+      // Send notification to user
+      await firebaseService.sendNotification({
+        booking_id: id,
+        title: "Price Updated",
+        body: `Your booking price has been updated to $${newPrice}`,
+        data: {
+          type: "price_update",
+          booking_id: id,
+          new_price: newPrice
+        }
+      });
+      
       toast({
         title: "Price updated",
-        description: "Booking price has been updated"
+        description: "Booking price has been updated and user has been notified"
       });
       
     } catch (error) {
@@ -266,6 +335,120 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     authService.logout();
     navigate('/login');
+  };
+
+  useEffect(() => {
+    fetchHelicopters();
+  }, []);
+
+  const fetchHelicopters = async () => {
+    try {
+      setIsLoadingHelicopters(true);
+      const data = await helicopterService.getAllHelicopters();
+      setHelicopters(data);
+    } catch (error) {
+      toast({
+        title: "Error fetching helicopters",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingHelicopters(false);
+    }
+  };
+
+  const handleAddHelicopter = async () => {
+    try {
+      if (!newHelicopter.model || !newHelicopter.capacity) {
+        toast({
+          title: "Error",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await helicopterService.addHelicopter(newHelicopter);
+      toast({
+        title: "Success",
+        description: "Helicopter added successfully"
+      });
+      setIsAddHelicopterDialogOpen(false);
+      setNewHelicopter({ model: '', capacity: '', image_url: '' });
+      fetchHelicopters();
+    } catch (error) {
+      toast({
+        title: "Error adding helicopter",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteHelicopter = async (id) => {
+    try {
+      await helicopterService.deleteHelicopter(id);
+      toast({
+        title: "Success",
+        description: "Helicopter deleted successfully"
+      });
+      fetchHelicopters();
+    } catch (error) {
+      toast({
+        title: "Error deleting helicopter",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  useEffect(() => {
+    // Set up Firebase notification handler
+    const handleNegotiationNotification = (payload) => {
+      if (payload.data?.type === 'negotiation_request') {
+        // Add to pending negotiations
+        setPendingNegotiations(prev => [...prev, {
+          booking_id: payload.data.booking_id,
+          amount: payload.data.amount,
+          notes: payload.data.notes,
+          timestamp: new Date().toISOString()
+        }]);
+        
+        // Show toast notification
+        toast({
+          title: "New Negotiation Request",
+          description: `Booking #${payload.data.booking_id} has a new negotiation request.`,
+          action: (
+            <ToastAction altText="View" onClick={() => handleViewNegotiation(payload.data.booking_id)}>
+              View
+            </ToastAction>
+          ),
+        });
+      }
+    };
+    
+    // Subscribe to Firebase messages
+    firebaseService.setupMessageHandler(handleNegotiationNotification);
+    
+    return () => {
+      // No need to unsubscribe as the setupMessageHandler doesn't return a cleanup function
+    };
+  }, []);
+  
+  const handleViewNegotiation = (bookingId) => {
+    // Find the booking in the list
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking) {
+      // Open negotiation dialog or navigate to booking details
+      setSelectedBooking(booking);
+      setNegotiationDialogOpen(true);
+    }
+  };
+
+  const handleUpload = (file) => {
+    if (file) {
+      setNewHelicopter({ ...newHelicopter, image_url: file.cdnUrl });
+    }
   };
 
   return (
@@ -352,6 +535,7 @@ const AdminDashboard = () => {
           <TabsList className="mb-4">
             <TabsTrigger value="bookings">Bookings Management</TabsTrigger>
             <TabsTrigger value="admins">Admin Users</TabsTrigger>
+            <TabsTrigger value="helicopters">Helicopter Fleet</TabsTrigger>
           </TabsList>
           
           {/* Bookings Tab */}
@@ -463,17 +647,10 @@ const AdminDashboard = () => {
                                     variant="outline" 
                                     size="sm"
                                     className="text-green-500 border-green-200 hover:bg-green-50"
-                                    onClick={() => handleNegotiationAction(booking.id, 'accept', booking.final_amount)}
+                                    onClick={() => handleNegotiationRequest(booking)}
                                   >
-                                    Accept
-                                  </Button>
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    className="text-red-500 border-red-200 hover:bg-red-50"
-                                    onClick={() => handleNegotiationAction(booking.id, 'reject', booking.original_amount)}
-                                  >
-                                    Reject
+                                    <Handshake className="h-4 w-4" />
+                                    Negotiate
                                   </Button>
                                 </>
                               )}
@@ -584,7 +761,253 @@ const AdminDashboard = () => {
               </div>
             </div>
           </TabsContent>
+          
+          {/* Helicopters Tab */}
+          <TabsContent value="helicopters">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Helicopter Fleet Management</h2>
+                <Button onClick={() => setIsAddHelicopterDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Helicopter
+                </Button>
+              </div>
+
+              {isLoadingHelicopters ? (
+                <div className="text-center py-8">
+                  <p>Loading helicopter data...</p>
+                </div>
+              ) : helicopters.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No helicopters in the fleet</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Capacity</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {helicopters.map((helicopter) => (
+                        <tr key={helicopter.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">{helicopter.model}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{helicopter.capacity} passengers</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {helicopter.image_url && (
+                              <img src={helicopter.image_url} alt={helicopter.model} className="h-10 w-10 object-cover rounded" />
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteHelicopter(helicopter.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
+
+        {/* Add Negotiation Dialog */}
+        <Dialog open={negotiationDialogOpen} onOpenChange={setNegotiationDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Manage Negotiation</DialogTitle>
+              <DialogDescription>
+                Review and respond to the negotiation request.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <h4 className="font-medium">Booking Details:</h4>
+                <div className="text-sm text-gray-500">
+                  <p>ID: {selectedBooking?.id}</p>
+                  <p>Customer: {selectedBooking?.customer_name}</p>
+                  <p>Original Amount: ${selectedBooking?.original_amount}</p>
+                  <p>Requested Amount: ${selectedBooking?.negotiated_amount}</p>
+                </div>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label>Action</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={negotiationAction === 'accept' ? 'default' : 'outline'}
+                    onClick={() => setNegotiationAction('accept')}
+                    className="flex-1"
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant={negotiationAction === 'reject' ? 'default' : 'outline'}
+                    onClick={() => setNegotiationAction('reject')}
+                    className="flex-1"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+              
+              {negotiationAction === 'accept' && (
+                <div className="grid gap-2">
+                  <Label htmlFor="final-amount">Final Amount</Label>
+                  <Input
+                    id="final-amount"
+                    type="number"
+                    value={finalAmount}
+                    onChange={(e) => setFinalAmount(e.target.value)}
+                    placeholder="Enter final amount"
+                  />
+                </div>
+              )}
+              
+              <div className="grid gap-2">
+                <Label htmlFor="negotiation-notes">Notes</Label>
+                <Input
+                  id="negotiation-notes"
+                  value={negotiationNotes}
+                  onChange={(e) => setNegotiationNotes(e.target.value)}
+                  placeholder="Enter negotiation notes"
+                />
+              </div>
+              
+              {negotiationHistory.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Negotiation History:</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {negotiationHistory.map((negotiation, index) => (
+                      <div key={index} className="p-2 bg-gray-50 rounded-md text-sm">
+                        <p className="font-medium">Amount: ${negotiation.new_amount || negotiation.old_amount}</p>
+                        <p className="text-gray-600">Notes: {negotiation.notes}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(negotiation.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNegotiationDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleNegotiationSubmit}
+                disabled={negotiationAction === 'accept' && (!finalAmount || isNaN(finalAmount))}
+              >
+                {negotiationAction === 'accept' ? 'Accept & Set Price' : 'Reject Negotiation'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Helicopter Dialog */}
+        <Dialog open={isAddHelicopterDialogOpen} onOpenChange={setIsAddHelicopterDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Helicopter</DialogTitle>
+              <DialogDescription>
+                Add a new helicopter to the fleet
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="model">Model</Label>
+                <Input
+                  id="model"
+                  value={newHelicopter.model}
+                  onChange={(e) => setNewHelicopter({ ...newHelicopter, model: e.target.value })}
+                  placeholder="Enter helicopter model"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="capacity">Capacity</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  value={newHelicopter.capacity}
+                  onChange={(e) => setNewHelicopter({ ...newHelicopter, capacity: e.target.value })}
+                  placeholder="Enter passenger capacity"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Upload Image</Label>
+                <div className="border rounded-md p-4">
+                  <FileUploaderRegular
+                    pubkey="2a4bb720cf8bcd6b97e7"
+                    onFileUploadSuccess={handleUpload}
+                    sourceList="local, camera, facebook, gdrive"
+                    cameraModes="photo, video"
+                    classNameUploader="uc-dark"
+                  />
+                </div>
+                {newHelicopter.image_url && (
+                  <div className="mt-4">
+                    <Label>Preview</Label>
+                    <div className="mt-2 border rounded-md overflow-hidden max-w-xs">
+                      <img
+                        src={newHelicopter.image_url}
+                        alt="Helicopter preview"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddHelicopterDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddHelicopter}>
+                Add Helicopter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add pending negotiations section */}
+        {pendingNegotiations.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-4">Pending Negotiations</h2>
+            <div className="grid gap-4">
+              {pendingNegotiations.map((negotiation, index) => (
+                <div key={index} className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">Booking #{negotiation.booking_id}</h3>
+                      <p className="text-sm text-gray-600">Amount: ${negotiation.amount}</p>
+                      <p className="text-sm text-gray-600">Notes: {negotiation.notes}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewNegotiation(negotiation.booking_id)}
+                    >
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
