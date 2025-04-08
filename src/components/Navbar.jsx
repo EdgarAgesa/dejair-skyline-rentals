@@ -51,7 +51,7 @@ const Navbar = () => {
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center">
               <span className="text-2xl font-bold text-dejair-700">Dejair</span>
-              <span className="text-2xl font-light text-dejair-500">Skyline</span>
+              <span className="text-2xl font-light text-dejair-500">Charters</span>
             </Link>
           </div>
           

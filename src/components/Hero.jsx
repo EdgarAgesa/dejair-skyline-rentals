@@ -11,7 +11,7 @@ const Hero = () => {
       <div 
         className="absolute inset-0 z-0 bg-cover bg-center"
         style={{ 
-          backgroundImage: "url('https://images.unsplash.com/photo-1587162146766-e06b1189b907?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80')",
+          backgroundImage: "url('https://images.unsplash.com/photo-1643913224222-17cc6adb2dfc?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fG5haXJvYmklMjBjaXR5fGVufDB8fDB8fHww')",
           backgroundPosition: "center 30%"
         }}
       >
@@ -26,7 +26,7 @@ const Hero = () => {
           </h1>
           <p className="text-lg md:text-xl text-white/90 mb-8 animate-slide-up" style={{animationDelay: "200ms"}}>
             Premium helicopter rental services for tours, events, and business travel. 
-            Elevate your journey with Dejair Skyline's luxury fleet.
+            Elevate your journey with Dejair Charters's luxury fleet.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 animate-slide-up" style={{animationDelay: "400ms"}}>
             <Link to="/helicopters">

@@ -4,27 +4,27 @@ import React from 'react';
 const destinations = [
   {
     id: 1,
-    name: 'Grand Canyon',
-    image: 'https://images.unsplash.com/photo-1574267432553-4b4628081c31?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2631&q=80',
-    description: 'Experience the majesty of one of the world\'s natural wonders from above.'
+    name: 'Maasai Mara',
+    image: 'https://images.unsplash.com/photo-1517846875602-2371528547d4?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8bWFhc2FpJTIwbWFyYXxlbnwwfHwwfHx8MA%3D%3D',
+    description: 'Float above the sweeping plains of the Maasai Mara, where nature’s grandeur unfolds beneath you.'
   },
   {
     id: 2,
-    name: 'Manhattan Skyline',
-    image: 'https://images.unsplash.com/photo-1518391846015-55a9cc003b25?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
-    description: 'Soar over the iconic skyscrapers and landmarks of New York City.'
+    name: 'Naivasha',
+    image: 'https://images.pexels.com/photos/9609129/pexels-photo-9609129.jpeg?auto=compress&cs=tinysrgb&w=600',
+    description: 'Where world-class rally meets Kenyan grit — WRC Naivasha is an electrifying celebration of motorsport in the heart of the wild.'
   },
   {
     id: 3,
-    name: 'Hawaiian Islands',
-    image: 'https://images.unsplash.com/photo-1542259009477-d625272157b7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2069&q=80',
-    description: 'Discover paradise from the air, including remote waterfalls and volcanic landscapes.'
+    name: 'Coastal region',
+    image: 'https://images.pexels.com/photos/1835718/pexels-photo-1835718.jpeg?auto=compress&cs=tinysrgb&w=600',
+    description: 'Unwind on the sun-kissed shores of Diani and Mombasa, where turquoise waters meet pure coastal bliss.'
   },
   {
     id: 4,
-    name: 'Niagara Falls',
-    image: 'https://images.unsplash.com/photo-1489447068241-b3490214e879?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
-    description: 'View the magnificent falls from a unique aerial perspective.'
+    name: 'Zanzibar',
+    image: 'https://images.unsplash.com/photo-1621583628955-42fbc37bf424?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8emFuemliYXJ8ZW58MHx8MHx8fDA%3D',
+    description: 'Immerse yourself in a breathtaking island where every moment is rich with life and discovery.'
   }
 ];
 

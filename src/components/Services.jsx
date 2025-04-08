@@ -42,7 +42,7 @@ const Services = () => {
         <div className="text-center mb-16">
           <h2 className="heading-md text-dejair-900 mb-4">Our Premium Services</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Dejair Skyline offers exceptional helicopter experiences tailored to your needs. 
+            Dejair Charters offers exceptional helicopter experiences tailored to your needs. 
             From breathtaking tours to efficient business travel, we elevate every journey.
           </p>
         </div>

@@ -27,8 +27,8 @@ const Index = () => {
     },
     {
       quote: "As a business executive, time is my most valuable asset. Dejair Skyline has revolutionized my travel between meetings and events.",
-      author: "Sarah Williams",
-      role: "CEO, TechGrowth Inc."
+      author: "Syphy Auma",
+      role: "Business Executive."
     },
     {
       quote: "Our wedding proposal helicopter tour was beyond perfect. The staff went above and beyond to make our special moment unforgettable.",
@@ -47,7 +47,7 @@ const Index = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="heading-md text-dejair-900 mb-4">Why Choose Dejair Skyline?</h2>
+              <h2 className="heading-md text-dejair-900 mb-4">Why Choose Dejair Charters?</h2>
               <p className="text-lg text-gray-600 mb-6">
                 With years of experience, a commitment to safety, and a passion for excellence, 
                 we deliver helicopter experiences that exceed expectations.
@@ -151,7 +151,7 @@ const Index = () => {
             <h2 className="heading-md text-dejair-900 mb-4">What Our Clients Say</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Don't just take our word for it. Hear from clients who have experienced 
-              the Dejair Skyline difference.
+              the Dejair Charters difference.
             </p>
           </div>
           
