@@ -83,18 +83,22 @@ const BookingChat = () => {
 
   // Helper function to get the display name for a message
   const getDisplayName = (message) => {
-    // If the message has a sender_name, use it
-    if (message.sender_name) {
-      return message.sender_name;
-    }
-    
     // If the message is from the current user, show "You"
     if (currentUser && message.sender_id === currentUser.id) {
       return "You";
     }
     
-    // Otherwise, use a default based on sender type
-    return message.sender_type === 'admin' ? 'Admin' : 'User';
+    // For other messages, use sender_name and role
+    if (message.sender_name) {
+      // If it's an admin message, show role and name
+      if (message.sender_type === 'admin') {
+        return `${message.sender_role}: ${message.sender_name}`;
+      }
+      return message.sender_name;
+    }
+    
+    // Fallback if no name is available
+    return message.sender_role || (message.sender_type === 'admin' ? 'Admin' : 'Client');
   };
 
   if (isLoading) {

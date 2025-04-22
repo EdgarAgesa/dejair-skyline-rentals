@@ -2,14 +2,14 @@
 importScripts('https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.6.0/firebase-messaging-compat.js');
 
-// Firebase configuration
+// Firebase configuration from environment
 firebase.initializeApp({
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID'
+  apiKey: "AIzaSyAGVJJdwXlwxGNd_hOFj6yTSQFqTdxLkdM",
+  authDomain: "dejair-booking.firebaseapp.com",
+  projectId: "dejair-booking",
+  storageBucket: "dejair-booking.appspot.com",
+  messagingSenderId: "186331542288",
+  appId: "1:186331542288:web:c5c7b5d9f5c5c5d5c5c5c5"
 });
 
 const messaging = firebase.messaging();
@@ -38,8 +38,14 @@ self.addEventListener('notificationclick', (event) => {
   
   const { data } = event.notification;
   
-  if (data && data.type === 'negotiation_request' && data.booking_id) {
-    // Open the booking details page
+  if (data && data.type === 'chat_message' && data.booking_id) {
+    // For chat messages, determine the role and open chat
+    const role = data.role || 'user';
+    event.waitUntil(
+      clients.openWindow(`/${role}/bookings/${data.booking_id}/chat`)
+    );
+  } else if (data && data.type === 'negotiation_request' && data.booking_id) {
+    // Open the booking details page for negotiation
     event.waitUntil(
       clients.openWindow(`/admin/bookings/negotiated/${data.booking_id}`)
     );

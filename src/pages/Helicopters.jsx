@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import moment from 'moment';
 
 const Helicopters = () => {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -144,52 +145,45 @@ const Helicopters = () => {
     setShowBookingForm(true);
   };
 
-  const handleBookingSubmit = async () => {
-    try {
-      // Validate booking details
-      if (!bookingDetails.purpose) {
-        toast({
-          title: "Purpose required",
-          description: "Please enter the purpose of your booking.",
-          variant: "destructive",
-        });
-        return;
-      }
+const handleBookingSubmit = async () => {
+  try {
+    const user = authService.getCurrentUser();
+    const clientId = user.client_id;
 
-      // Prepare booking data with required fields
-      const bookingData = {
-        helicopter_id: selectedHelicopter.id,
-        date: bookingDetails.date,
-        time: bookingDetails.time,
-        purpose: bookingDetails.purpose,
-        num_passengers: bookingDetails.num_passengers,
-        amount: bookingDetails.amount
-      };
-      
-      // Create booking using the booking service
-      const response = await bookingService.createBooking(bookingData);
-      
-      // Show success message with booking details
-      toast({
-        title: "Booking created successfully",
-        description: "Please proceed to payment to confirm your booking.",
-      });
-      
-      // Store the booking for payment
-      setCurrentBooking(response.booking);
-      
-      // Close booking form and show payment dialog
-      setShowBookingForm(false);
-      setShowPaymentDialog(true);
-      
-    } catch (error) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Failed to create booking. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+    // Ensure all required fields are included
+    const bookingData = {
+      helicopter_id: selectedHelicopter.id,
+      date: moment(bookingDetails.date).format('YYYY-MM-DD'),
+      time: moment(bookingDetails.time, 'HH:mm').format('HH:mm:ss'),
+      purpose: bookingDetails.purpose || 'General purpose', // Default if empty
+      num_passengers: bookingDetails.num_passengers || 1, // Default to 1 if empty
+      original_amount: bookingDetails.amount || selectedHelicopter.hourlyRate, // Map to original_amount
+      client_id: clientId,
+    };
+
+    // Log the booking data for debugging
+
+    // Call the booking service to create the booking
+    const response = await bookingService.createBooking(bookingData);
+
+    // Handle successful booking
+    toast({
+      title: "Booking Successful",
+      description: "Your booking has been created successfully.",
+    });
+
+    setShowBookingForm(false);
+    setCurrentBooking(response);
+    setShowPaymentDialog(true);
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    toast({
+      title: "Error",
+      description: error.message || "Failed to create booking. Please try again later.",
+      variant: "destructive",
+    });
+  }
+};
 
   const handleBookingCancel = () => {
     setShowBookingForm(false);
@@ -324,7 +318,7 @@ const Helicopters = () => {
                           checked={filters.maxPrice === 5000}
                           onCheckedChange={() => setFilters(prev => ({ ...prev, maxPrice: 5000 }))}
                         />
-                        <label htmlFor="price-5000" className="text-sm">$5,000 or less</label>
+                        <label htmlFor="price-5000" className="text-sm">5,000 or less</label>
                       </div>
                     </div>
                   </div>
@@ -610,7 +604,7 @@ const HelicopterCard = ({ helicopter, onBook }) => {
                         <div className="font-medium">{tour.name}</div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">{tour.duration} hours</span>
-                          <span className="font-medium">${tour.price}</span>
+                          <span className="font-medium">{tour.price}</span>
                         </div>
                         <Button 
                           variant="outline" 
@@ -664,7 +658,7 @@ const TourCard = ({ helicopter, tour, onBook }) => {
                 <CardDescription>on {helicopter.name}</CardDescription>
               </div>
               <div className="text-right">
-                <div className="text-xl font-bold text-dejair-700">${tour.price}</div>
+                <div className="text-xl font-bold text-dejair-700">{tour.price}</div>
                 <div className="text-sm text-gray-500">per booking</div>
               </div>
             </div>

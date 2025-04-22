@@ -1,121 +1,83 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
-import bookingService from '../services/bookingService';
 
-const PaymentDialog = ({ 
-  isOpen, 
-  onClose, 
-  booking, 
+const PaymentDialog = ({
+  isOpen,
+  onClose,
   onProcessPayment,
+  booking,
   isLoading,
   error,
   isSuccess,
   successMessage,
   isPending,
-  pendingMessage
+  pendingMessage,
 }) => {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const { toast } = useToast();
+  const [phoneNumber, setPhoneNumber] = useState("");
 
-  const handlePayment = async () => {
-    if (!phoneNumber) {
-      toast({
-        title: "Phone number required",
-        description: "Please enter your phone number to proceed with payment.",
-        variant: "destructive",
-      });
+  if (!booking) {
+    return null;
+  }
+
+  const handlePayment = () => {
+    if (!booking) {
       return;
     }
 
-    if (!booking || !booking.id) {
-      toast({
-        title: "Invalid booking",
-        description: "No booking selected for payment.",
-        variant: "destructive",
-      });
+    // Use final_amount if available, otherwise use original_amount
+    const paymentAmount = booking.final_amount === null ? booking.original_amount : booking.final_amount;
+
+    if (!paymentAmount) {
       return;
     }
 
-    try {
-      await onProcessPayment(booking.id, phoneNumber);
-    } catch (error) {
-      toast({
-        title: "Payment failed",
-        description: error.message || "Failed to process payment. Please try again.",
-        variant: "destructive",
-      });
+    // Format phone number to remove any spaces or special characters
+    const formattedPhone = phoneNumber.replace(/\D/g, '');
+    if (!formattedPhone || formattedPhone.length < 9) {
+      return;
     }
+
+    // Convert amount to string and ensure it's a valid number
+    onProcessPayment(booking.id, formattedPhone, String(Number(paymentAmount)));
   };
+
+  // Get the display amount - use final_amount if available, otherwise use original_amount
+  const displayAmount = booking.final_amount === null ? booking.original_amount : booking.final_amount;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Complete Your Booking</DialogTitle>
+          <DialogTitle>Pay for Booking #{booking.id}</DialogTitle>
           <DialogDescription>
-            Please enter your phone number to process the payment of ${booking?.final_amount || booking?.amount}.
+            Enter your phone number to initiate the payment. Amount: ${displayAmount}
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              placeholder="Enter your phone number"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
-          
-          <div className="text-sm text-gray-500">
-            <p>Booking ID: {booking?.id}</p>
-            <p>Amount: ${booking?.final_amount || booking?.amount}</p>
-          </div>
-
-          {error && (
-            <div className="text-sm text-red-500">
-              {error}
-            </div>
-          )}
-
-          {isSuccess && (
-            <div className="text-sm text-green-500">
-              {successMessage}
-            </div>
-          )}
-
-          {isPending && (
-            <div className="text-sm text-yellow-500">
-              {pendingMessage}
-            </div>
-          )}
+        <div className="grid gap-4 py-4">
+          <Input
+            id="phone-number"
+            type="tel"
+            placeholder="Enter phone number"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+          />
         </div>
-        
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={handlePayment} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Pay Now'
-            )}
+            {isLoading ? "Processing..." : "Pay Now"}
           </Button>
-        </div>
+        </DialogFooter>
+        {error && <p className="text-red-500 mt-2">{error}</p>}
+        {isSuccess && <p className="text-green-500 mt-2">{successMessage}</p>}
+        {isPending && <p className="text-yellow-500 mt-2">{pendingMessage}</p>}
       </DialogContent>
     </Dialog>
   );
 };
 
-export default PaymentDialog; 
+export default PaymentDialog;

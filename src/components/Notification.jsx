@@ -49,7 +49,6 @@ const Notification = () => {
           });
         }
       })
-      .catch((err) => console.log('Failed to receive foreground message:', err));
 
     return () => {
       unsubscribe;

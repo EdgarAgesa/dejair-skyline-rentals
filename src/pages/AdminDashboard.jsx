@@ -63,6 +63,11 @@ const AdminDashboard = () => {
 
   const [pendingNegotiations, setPendingNegotiations] = useState([]);
 
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+
+  // Check if current user is superadmin
+  const isSuperAdmin = authService.getCurrentUser()?.role === 'superadmin';
+
   // Fetch all bookings data
   const fetchBookings = async () => {
     try {
@@ -104,16 +109,12 @@ const AdminDashboard = () => {
     try {
       // Check if user is logged in first
       if (!authService.isLoggedIn()) {
-        console.warn("User not logged in, skipping unread message fetch");
         return;
       }
-      
       const count = await chatService.getUnreadMessageCount();
       setUnreadMessages(count);
     } catch (error) {
-      console.error("Error fetching unread messages:", error);
       // Don't show toast for every error to avoid spamming the user
-      // Only show toast for the first error
       if (unreadMessages === 0) {
         toast({
           title: "Connection Error",
@@ -166,9 +167,8 @@ const AdminDashboard = () => {
     setFilteredBookings(filtered);
   }, [searchQuery, statusFilter, bookings]);
 
-  const handleAddAdmin = () => {
-    // Validate inputs
-    if (!newAdmin.name || !newAdmin.email) {
+  const handleAddAdmin = async () => {
+    if (!newAdmin.name || !newAdmin.email || !newAdmin.role) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -176,14 +176,35 @@ const AdminDashboard = () => {
       });
       return;
     }
-    
-    // Here we would add API call to create admin
-    toast({
-      title: "Feature coming soon",
-      description: "Admin management will be implemented in the next update",
-    });
-    
-    setNewAdmin({ name: '', email: '', role: 'Admin' });
+    setIsAddingAdmin(true);
+    try {
+      // Call backend to create admin
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAdmin.name,
+          email: newAdmin.email,
+          phone_number: newAdmin.phone_number || '', // add phone if needed
+          password: newAdmin.password || 'changeme123', // or prompt for password
+          confirmation_password: newAdmin.password || 'changeme123',
+        }),
+      }).then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to add admin');
+        toast({ title: "Success", description: "Admin added successfully" });
+        setNewAdmin({ name: '', email: '', role: 'Admin' });
+        // Optionally refresh admin list here
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsAddingAdmin(false);
+    }
   };
 
   const handleRemoveAdmin = (id) => {
@@ -254,8 +275,8 @@ const AdminDashboard = () => {
       }
 
       await bookingService.handleNegotiation(selectedBooking.id, {
-        action: negotiationAction,
-        finalAmount: parseFloat(finalAmount),
+        negotiation_action: negotiationAction,
+        final_amount: parseFloat(finalAmount),
         notes: negotiationNotes
       });
 
@@ -293,8 +314,8 @@ const AdminDashboard = () => {
     try {
       // Call API to update booking price
       const response = await bookingService.handleNegotiation(id, {
-        action: 'accept',
-        finalAmount: Number(newPrice),
+        negotiation_action: 'accept',
+        final_amount: Number(newPrice),
         notes: 'Price updated by admin'
       });
       
@@ -312,9 +333,9 @@ const AdminDashboard = () => {
         title: "Price Updated",
         body: `Your booking price has been updated to $${newPrice}`,
         data: {
-          type: "price_update",
-          booking_id: id,
-          new_price: newPrice
+          negotiation_action: "accept",
+          final_amount: Number(newPrice),
+          notes: "Price updated by admin"
         }
       });
       
@@ -392,6 +413,7 @@ const AdminDashboard = () => {
         title: "Success",
         description: "Helicopter deleted successfully"
       });
+      // Always refresh the list after deletion
       fetchHelicopters();
     } catch (error) {
       toast({
@@ -697,64 +719,68 @@ const AdminDashboard = () => {
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="p-4 border-b flex justify-between items-center">
                 <h3 className="text-lg font-medium">Admin Users</h3>
-                
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Add Admin
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Admin</DialogTitle>
-                      <DialogDescription>
-                        Add a new administrator to manage the Dejair Skyline system.
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input 
-                          id="name" 
-                          value={newAdmin.name} 
-                          onChange={(e) => setNewAdmin({...newAdmin, name: e.target.value})} 
-                        />
+                {isSuperAdmin && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Add Admin
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Admin</DialogTitle>
+                        <DialogDescription>
+                          Add a new administrator to manage the Dejair Skyline system.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Full Name</Label>
+                          <Input
+                            id="name"
+                            value={newAdmin.name}
+                            onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={newAdmin.email}
+                            onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="phone">Phone Number</Label>
+                          <Input
+                            id="phone"
+                            type="tel"
+                            value={newAdmin.phone_number || ''}
+                            onChange={(e) => setNewAdmin({ ...newAdmin, phone_number: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="password">Password</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={newAdmin.password || ''}
+                            onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                            placeholder="Set a password"
+                          />
+                        </div>
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input 
-                          id="email" 
-                          type="email" 
-                          value={newAdmin.email} 
-                          onChange={(e) => setNewAdmin({...newAdmin, email: e.target.value})} 
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="role">Role</Label>
-                        <Select 
-                          value={newAdmin.role} 
-                          onValueChange={(value) => setNewAdmin({...newAdmin, role: value})}
-                        >
-                          <SelectTrigger id="role">
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Admin">Admin</SelectItem>
-                            <SelectItem value="Super Admin">Super Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button onClick={handleAddAdmin}>Add Admin</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                      <DialogFooter>
+                        <Button onClick={handleAddAdmin} disabled={isAddingAdmin}>
+                          {isAddingAdmin ? "Adding..." : "Add Admin"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
-              
               <div className="p-8 text-center">
                 <p className="text-gray-500 mb-4">Admin management API coming soon</p>
                 <p className="text-gray-400 text-sm">This feature is currently in development.</p>

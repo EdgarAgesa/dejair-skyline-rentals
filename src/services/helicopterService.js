@@ -109,7 +109,7 @@ const helicopterService = {
       });
       
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.message || 'Failed to add helicopter');
       }
@@ -174,4 +174,4 @@ const helicopterService = {
   }
 };
 
-export default helicopterService; 
+export default helicopterService;

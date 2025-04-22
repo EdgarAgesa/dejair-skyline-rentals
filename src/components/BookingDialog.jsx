@@ -39,11 +39,11 @@ const BookingDialog = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!date) {
+
+    if (!date || !time) {
       toast({
-        title: "Date required",
-        description: "Please select a booking date",
+        title: "Date and Time required",
+        description: "Please select a booking date and time",
         variant: "destructive",
       });
       return;
@@ -51,51 +51,48 @@ const BookingDialog = ({
 
     try {
       setIsSubmitting(true);
-      
+
       // Format date and time
       const formattedDate = format(date, 'yyyy-MM-dd');
-      const timeComponents = time.split(':');
-      const formattedTime = `${timeComponents[0]}:${timeComponents[1]}:00`;
-      
-      // Set initial amount to 1 as requested
-      const amount = 1;
-      
+      const formattedTime = `${time}:00`;
+
       const bookingData = {
-        helicopter_id: helicopter.id,
-        date: formattedDate,
         time: formattedTime,
-        purpose: purpose,
+        date: formattedDate,
+        purpose,
         num_passengers: parseInt(numPassengers),
-        amount: amount,
-        notes: notes
+        helicopter_id: helicopter.id,
+        client_id: authService.getCurrentUser().id, // Ensure client_id is included
+        original_amount: parseInt(amount), // Use the user-specified amount
       };
-      
-      // Create booking
-      const response = await fetch('/api/bookings', {
+
+      const response = await fetch(`${API_URL}/booking`, {
         method: 'POST',
         headers: {
+          ...authService.getAuthHeader(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(bookingData),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to create booking');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create booking');
       }
-      
+
       const data = await response.json();
-      setBookingId(data.id);
-      
-      // Don't close the dialog yet, wait for payment or negotiation
-      return data;
-      
+      toast({
+        title: "Booking Successful",
+        description: "Your booking has been created successfully.",
+      });
+
+      onBookingComplete(data); // Pass the created booking data
     } catch (error) {
       toast({
-        title: "Booking failed",
+        title: "Booking Failed",
         description: error.message || "Failed to create booking. Please try again.",
         variant: "destructive",
       });
-      return null;
     } finally {
       setIsSubmitting(false);
     }
@@ -375,4 +372,4 @@ const BookingDialog = ({
   );
 };
 
-export default BookingDialog; 
+export default BookingDialog;

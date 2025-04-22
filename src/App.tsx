@@ -15,6 +15,8 @@ import PaymentConfirmation from "./pages/PaymentConfirmation";
 import AdminAddHelicopter from "./pages/AdminAddHelicopter";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BookingChat from './pages/BookingChat';
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,8 @@ const App = () => (
             element={<ProtectedRoute element={<PaymentConfirmation />} />} 
           />
           <Route path="/booking/:bookingId/chat" element={<BookingChat />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

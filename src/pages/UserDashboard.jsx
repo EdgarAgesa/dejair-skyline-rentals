@@ -107,10 +107,31 @@ const UserDashboard = () => {
     setNegotiationNotes('');
   };
 
-  const openPaymentDialog = (booking, isNegotiated = false) => {
+  const openPaymentDialog = async (booking, isNegotiated = false) => {
+    if (!booking) {
+      return;
+    }
+
+    let updatedBooking = booking;
+
+    // If final_amount is null, update it in the backend to match original_amount
+    if (booking.final_amount === null) {
+      try {
+        const response = await bookingService.updateBooking(booking.id, {
+          final_amount: booking.original_amount
+        });
+        updatedBooking = { ...booking, final_amount: booking.original_amount };
+        setBookings(bookings.map(b => (b.id === booking.id ? updatedBooking : b)));
+        setSelectedBooking(updatedBooking);
+      } catch (error) {
+        return;
+      }
+    } else {
+      setSelectedBooking(booking);
+    }
+
     setActiveBookingId(booking.id);
     setIsNegotiatedPayment(isNegotiated);
-    setSelectedBooking(booking);
     setIsPaymentDialogOpen(true);
   };
 
@@ -125,14 +146,10 @@ const UserDashboard = () => {
   const handleNegotiationRequest = async (bookingId) => {
     try {
       setIsNegotiating(true);
-      
-      // Send the negotiation request
-      const response = await bookingService.requestNegotiation(bookingId, {
+      await bookingService.requestNegotiation(bookingId, {
         negotiated_amount: parseFloat(negotiationAmount),
         notes: negotiationNotes
       });
-      
-      // Send Firebase notification
       await firebaseService.sendNotification({
         booking_id: bookingId,
         title: "New Negotiation Request",
@@ -144,18 +161,17 @@ const UserDashboard = () => {
           notes: negotiationNotes
         }
       });
-      
+
       toast({
         title: "Negotiation request submitted",
         description: "An admin will review your request and contact you shortly.",
       });
-      
+
       setShowNegotiationDialog(false);
       setNegotiationAmount('');
       setNegotiationNotes('');
-      fetchBookings(); // Refresh bookings list
+      fetchBookings();
     } catch (error) {
-      console.error('Negotiation error:', error);
       toast({
         title: "Negotiation failed",
         description: error.message || "Failed to submit negotiation request. Please try again.",
@@ -166,117 +182,100 @@ const UserDashboard = () => {
     }
   };
 
-  const handleProcessPayment = async (bookingId, phoneNumber) => {
+  const handleProcessPayment = async (bookingId, phoneNumber, amount) => {
     setPaymentLoading(true);
     setPaymentError(null);
     setPaymentSuccess(false);
     setPaymentPending(false);
 
     try {
-      console.log(`Processing payment for booking ${bookingId} with phone number ${phoneNumber}`);
-      
-      let result;
-      
-      if (isNegotiatedPayment) {
-        console.log('Processing negotiated payment');
-        result = await bookingService.processNegotiatedPayment(bookingId, { phoneNumber });
-      } else {
-        console.log('Processing direct payment');
-        result = await bookingService.processDirectPayment(bookingId, { phoneNumber });
+      const validAmount = Number(amount);
+      if (isNaN(validAmount) || validAmount <= 0) {
+        throw new Error("Invalid payment amount");
       }
-      
-      console.log('Payment processing result:', result);
-      
-      if (result.message && result.message.includes('successful')) {
-        console.log('Payment initiated successfully');
+
+      const paymentData = {
+        phoneNumber,
+        amount: String(validAmount),
+      };
+
+      let result;
+      if (isNegotiatedPayment) {
+        result = await bookingService.processNegotiatedPayment(bookingId, paymentData);
+      } else {
+        result = await bookingService.processDirectPayment(bookingId, paymentData);
+      }
+
+      if (result.message && result.message.includes("successful")) {
         setPaymentSuccess(true);
-        setPaymentSuccessMessage('Payment initiated successfully! Please check your phone for the M-Pesa prompt.');
+        setPaymentSuccessMessage("Payment initiated successfully! Please check your phone for the M-Pesa prompt.");
         startPaymentStatusPolling(bookingId);
-      } else if (result.status === 'pending') {
-        console.log('Payment is pending');
+      } else if (result.status === "pending") {
         setPaymentPending(true);
-        setPaymentPendingMessage('Payment is pending. Please check your phone for the M-Pesa prompt.');
+        setPaymentPendingMessage("Payment is pending. Please check your phone for the M-Pesa prompt.");
         startPaymentStatusPolling(bookingId);
       } else {
-        console.log('Payment failed:', result.message);
-        setPaymentError(result.message || 'Failed to process payment. Please try again.');
+        setPaymentError(result.message || "Failed to process payment. Please try again.");
       }
     } catch (error) {
-      console.error('Error processing payment:', error);
-      setPaymentError(error.message || 'An error occurred while processing the payment.');
+      setPaymentError(error.message || "An error occurred while processing the payment.");
     } finally {
       setPaymentLoading(false);
     }
   };
 
   const startPaymentStatusPolling = (bookingId) => {
-    // Clear any existing polling interval
     if (paymentPollingInterval) {
       clearInterval(paymentPollingInterval);
     }
 
     let attempts = 0;
-    const maxAttempts = 24; // 2 minutes (5 seconds * 24)
-
-    console.log(`Starting payment status polling for booking ${bookingId}`);
+    const maxAttempts = 24;
 
     const interval = setInterval(async () => {
       attempts++;
-      console.log(`Payment status polling attempt ${attempts}/${maxAttempts}`);
-      
+
       try {
-        // First try to get the booking directly to check its status
         const booking = await bookingService.getBooking(bookingId);
-        console.log(`Booking status: ${booking.status}, Payment status: ${booking.payment_status}`);
-        
+
         if (booking.status === 'paid' || booking.payment_status === 'paid') {
-          console.log('Payment confirmed successfully!');
           clearInterval(interval);
           setPaymentSuccess(true);
           setPaymentSuccessMessage('Payment completed successfully!');
           setPaymentPending(false);
-          fetchBookings(); // Refresh the bookings list
+          fetchBookings();
           setTimeout(() => {
             setIsPaymentDialogOpen(false);
-            // Redirect to payment confirmation page
             navigate(`/payment-confirmation/${bookingId}`);
           }, 2000);
         } else if (booking.status === 'cancelled' || booking.payment_status === 'failed') {
-          console.log('Payment failed or was cancelled');
           clearInterval(interval);
           setPaymentError('Payment was not completed. Please try again.');
           setPaymentPending(false);
         } else if (attempts >= maxAttempts) {
-          console.log('Payment status polling timed out');
           clearInterval(interval);
           setPaymentError('Payment status check timed out. Please check your booking status.');
           setPaymentPending(false);
         } else {
-          // If we can't determine the status from the booking, try the dedicated status endpoint
           try {
             const result = await bookingService.getBookingStatus(bookingId);
-            console.log(`Booking status from dedicated endpoint: ${result.status}`);
-            
+
             if (result.status === 'paid' || (result.message && result.message.includes('paid'))) {
-              console.log('Payment confirmed successfully from dedicated endpoint!');
               clearInterval(interval);
               setPaymentSuccess(true);
               setPaymentSuccessMessage('Payment completed successfully!');
               setPaymentPending(false);
-              fetchBookings(); // Refresh the bookings list
+              fetchBookings();
               setTimeout(() => {
                 setIsPaymentDialogOpen(false);
-                // Redirect to payment confirmation page
                 navigate(`/payment-confirmation/${bookingId}`);
               }, 2000);
             }
           } catch (statusError) {
-            console.error('Error checking booking status from dedicated endpoint:', statusError);
             // Continue polling even if this fails
           }
         }
       } catch (error) {
-        console.error('Error checking payment status:', error);
         // Don't stop polling on error, just log it
       }
     }, 5000);
@@ -536,15 +535,15 @@ const UserDashboard = () => {
   );
 };
 
-const BookingCard = ({ 
-  booking, 
-  onCancel, 
+const BookingCard = ({
+  booking,
+  onCancel,
   onNegotiate,
   onPayNow,
   onPayNegotiated,
-  isPaid = false, 
+  isPaid = false,
   statusBadge,
-  negotiationStatusBadge
+  negotiationStatusBadge,
 }) => {
   return (
     <Card>
@@ -586,41 +585,25 @@ const BookingCard = ({
       </CardContent>
       {!isPaid && (
         <CardFooter className="flex justify-end space-x-2 pt-2">
-          {onNegotiate && booking.negotiation_status === 'none' && (
+          {onNegotiate && booking.negotiation_status === "none" && (
             <Button variant="outline" size="sm" onClick={onNegotiate}>
-              <PenLine className="mr-1 h-4 w-4" />
               Negotiate
             </Button>
           )}
           {onPayNow && (
             <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={onPayNow}>
-              <DollarSign className="mr-1 h-4 w-4" />
               Pay Now
             </Button>
           )}
           {onPayNegotiated && (
             <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={onPayNegotiated}>
-              <DollarSign className="mr-1 h-4 w-4" />
               Pay Negotiated
             </Button>
           )}
           {onCancel && (
             <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={onCancel}>
-              <Ban className="mr-1 h-4 w-4" />
               Cancel
             </Button>
-          )}
-          {(booking.negotiation_status === 'requested' || booking.negotiation_status === 'accepted') && (
-            <Link to={`/booking/${booking.id}/chat`}>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="text-blue-500 border-blue-200 hover:bg-blue-50"
-              >
-                <MessageSquare className="mr-1 h-4 w-4" />
-                Chat with Admin
-              </Button>
-            </Link>
           )}
         </CardFooter>
       )}

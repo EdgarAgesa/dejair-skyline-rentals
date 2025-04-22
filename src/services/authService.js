@@ -1,5 +1,8 @@
-// Authentication service for DejAir booking system
-// Handles API calls to the backend auth endpoints
+// Authentication service for DejAir helicopter booking system
+// Handles user authentication and token management
+
+import firebaseService from './firebaseService';
+
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -38,14 +41,12 @@ const authService = {
   // Login as client
   async login(email, password) {
     try {
-      // Use more efficient fetch options
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
-        // Add cache control headers to prevent caching
         cache: 'no-cache',
       });
       
@@ -56,13 +57,30 @@ const authService = {
       }
       
       if (data.access_token) {
-        localStorage.setItem('user', JSON.stringify({
+        const userData = {
           token: data.access_token,
-          role: 'user'
-        }));
+          role: 'user',
+          client_id: data.client_id,
+          name: data.name,
+          email: data.email
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
         
-        // Dispatch storage event immediately
+        // Set up notifications
+        try {
+          await firebaseService.setupNotifications();
+        } catch (error) {
+          console.warn('Could not enable notifications:', error);
+        }
+        
+        // Verify token is stored
+        const storedData = localStorage.getItem('user');
+        
+        // Dispatch storage event
         window.dispatchEvent(new Event('storage'));
+      } else {
+        console.error('No access token in response');
+        throw new Error('No access token received');
       }
       
       return data;
@@ -102,23 +120,28 @@ const authService = {
         
         localStorage.setItem('user', JSON.stringify(userInfo));
         
-        // Subscribe to admin notifications topic
-        if (data.fcm_token) {
-          try {
-            await fetch(`${API_URL}/fcm-token`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${data.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ 
-                token: data.fcm_token,
-                topic: 'admin_notifications'
-              }),
-            });
-          } catch (error) {
-            console.error('Error subscribing to admin notifications:', error);
+        // Set up notifications and subscribe to admin notifications
+        try {
+          const success = await firebaseService.setupNotifications();
+          if (success) {
+            // Get the current FCM token
+            const fcmToken = await firebaseService.refreshTokenIfNeeded();
+            if (fcmToken) {
+              await fetch(`${API_URL}/fcm-token`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${data.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                  token: fcmToken,
+                  topic: 'admin_notifications'
+                }),
+              });
+            }
           }
+        } catch (error) {
+          console.warn('Could not enable notifications:', error);
         }
         
         // Dispatch a storage event to notify other components of the login
@@ -133,10 +156,30 @@ const authService = {
   },
   
   // Logout user
-  logout() {
-    localStorage.removeItem('user');
-    // Dispatch a storage event to notify other components of the logout
-    window.dispatchEvent(new Event('storage'));
+  async logout() {
+    const user = this.getCurrentUser();
+    if (user && user.token) {
+      try {
+        // Tell backend to invalidate the token
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      } finally {
+        // Always clear local storage and notify components
+        localStorage.removeItem('user');
+        window.dispatchEvent(new Event('storage'));
+      }
+    } else {
+      // If no user/token, just clear storage
+      localStorage.removeItem('user');
+      window.dispatchEvent(new Event('storage'));
+    }
   },
   
   // Get current user data
@@ -166,8 +209,12 @@ const authService = {
   getAuthHeader() {
     const user = this.getCurrentUser();
     if (user && user.token) {
-      return { Authorization: `Bearer ${user.token}` };
+      // Log token for debugging
+      return { 'Authorization': `Bearer ${user.token}` };
     } else {
+      console.warn('No token found in localStorage');
+      // If no token, force logout to clean up
+      this.logout();
       return {};
     }
   }
