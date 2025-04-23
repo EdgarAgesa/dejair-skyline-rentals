@@ -208,17 +208,30 @@ const UserDashboard = () => {
 
       if (result.message && result.message.includes("successful")) {
         setPaymentSuccess(true);
-        setPaymentSuccessMessage("Payment initiated successfully! Please check your phone for the M-Pesa prompt.");
+        setPaymentSuccessMessage("Payment initiated! Check your phone for M-Pesa prompt.");
         startPaymentStatusPolling(bookingId);
       } else if (result.status === "pending") {
         setPaymentPending(true);
-        setPaymentPendingMessage("Payment is pending. Please check your phone for the M-Pesa prompt.");
+        setPaymentPendingMessage("Payment initiated! Check your phone for M-Pesa prompt.");
         startPaymentStatusPolling(bookingId);
       } else {
         setPaymentError(result.message || "Failed to process payment. Please try again.");
       }
     } catch (error) {
-      setPaymentError(error.message || "An error occurred while processing the payment.");
+      // Graceful handling for user-cancelled payment
+      const msg = error?.message || "";
+      if (
+        msg.includes("Request cancelled by user") ||
+        msg.includes("ResultDesc") && msg.includes("Request cancelled by user")
+      ) {
+        setPaymentError(
+          "You cancelled the payment request. No money was deducted. If this was a mistake, please try again."
+        );
+      } else {
+        setPaymentError(
+          msg || "An error occurred while processing the payment. Please try again."
+        );
+      }
     } finally {
       setPaymentLoading(false);
     }
@@ -229,8 +242,15 @@ const UserDashboard = () => {
       clearInterval(paymentPollingInterval);
     }
 
+    // Immediately navigate to confirmation page after payment initiation
+    setTimeout(() => {
+      setIsPaymentDialogOpen(false);
+      navigate(`/payment-confirmation/${bookingId}?success=1`);
+    }, 500); // quick transition
+
     let attempts = 0;
-    const maxAttempts = 24;
+    const maxAttempts = 12; // Reduce to 1 minute total
+    const pollInterval = 5000; // Keep 5 seconds interval
 
     const interval = setInterval(async () => {
       attempts++;
@@ -244,41 +264,22 @@ const UserDashboard = () => {
           setPaymentSuccessMessage('Payment completed successfully!');
           setPaymentPending(false);
           fetchBookings();
-          setTimeout(() => {
-            setIsPaymentDialogOpen(false);
-            navigate(`/payment-confirmation/${bookingId}`);
-          }, 2000);
         } else if (booking.status === 'cancelled' || booking.payment_status === 'failed') {
           clearInterval(interval);
           setPaymentError('Payment was not completed. Please try again.');
           setPaymentPending(false);
+          // Navigate back to dashboard if payment failed
+          navigate('/user-dashboard');
         } else if (attempts >= maxAttempts) {
           clearInterval(interval);
-          setPaymentError('Payment status check timed out. Please check your booking status.');
-          setPaymentPending(false);
-        } else {
-          try {
-            const result = await bookingService.getBookingStatus(bookingId);
-
-            if (result.status === 'paid' || (result.message && result.message.includes('paid'))) {
-              clearInterval(interval);
-              setPaymentSuccess(true);
-              setPaymentSuccessMessage('Payment completed successfully!');
-              setPaymentPending(false);
-              fetchBookings();
-              setTimeout(() => {
-                setIsPaymentDialogOpen(false);
-                navigate(`/payment-confirmation/${bookingId}`);
-              }, 2000);
-            }
-          } catch (statusError) {
-            // Continue polling even if this fails
-          }
+          // Don't show timeout error, just keep polling in background
+          setPaymentPending(true);
         }
       } catch (error) {
-        // Don't stop polling on error, just log it
+        // Continue polling even if there's an error
+        console.error('Error checking payment status:', error);
       }
-    }, 5000);
+    }, pollInterval);
 
     setPaymentPollingInterval(interval);
   };

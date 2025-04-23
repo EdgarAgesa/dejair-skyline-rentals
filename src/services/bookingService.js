@@ -26,7 +26,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching bookings:', error);
       throw error;
     }
   },
@@ -51,7 +50,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error creating booking:', error);
       throw error;
     }
   },
@@ -76,7 +74,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error updating booking:', error);
       throw error;
     }
   },
@@ -100,7 +97,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching booking:', error);
       throw error;
     }
   },
@@ -124,7 +120,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching negotiation history:', error);
       throw error;
     }
   },
@@ -153,7 +148,6 @@ const bookingService = {
 
       return data;
     } catch (error) {
-      console.error('Error requesting negotiation:', error);
       throw error;
     }
   },
@@ -189,7 +183,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error updating booking status:', error);
       throw error;
     }
   },
@@ -227,7 +220,6 @@ const bookingService = {
 
       return data;
     } catch (error) {
-      console.error('Error processing payment:', error);
       throw error;
     }
   },
@@ -264,13 +256,10 @@ const bookingService = {
         try {
           data = await response.json();
         } catch (jsonError) {
-          console.error('Error parsing JSON response:', jsonError);
           throw new Error(`Server returned invalid JSON: ${await response.text()}`);
         }
         
         if (!response.ok) {
-          console.error('Payment failed with status:', response.status, 'Data:', data);
-          
           // If it's a server error (500), retry
           if (response.status >= 500 && retryCount < MAX_RETRIES) {
             retryCount++;
@@ -284,8 +273,6 @@ const bookingService = {
         
         return data;
       } catch (error) {
-        console.error('Error processing payment:', error);
-        
         // If it's a timeout error and we haven't exceeded retries, retry
         if (error.name === 'AbortError' && retryCount < MAX_RETRIES) {
           retryCount++;
@@ -328,7 +315,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching negotiated bookings:', error);
       throw error;
     }
   },
@@ -352,7 +338,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching incomplete bookings:', error);
       throw error;
     }
   },
@@ -376,7 +361,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching completed bookings:', error);
       throw error;
     }
   },
@@ -405,7 +389,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error handling negotiation:', error);
       throw error;
     }
   },
@@ -429,7 +412,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching booking status:', error);
       throw error;
     }
   },
@@ -453,7 +435,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching negotiation history:', error);
       throw error;
     }
   },
@@ -482,7 +463,6 @@ const bookingService = {
       
       return data;
     } catch (error) {
-      console.error('Error requesting negotiation:', error);
       throw error;
     }
   }
